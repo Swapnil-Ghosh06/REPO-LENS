@@ -22,6 +22,7 @@ Each returned dict has the shape::
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -32,7 +33,7 @@ import git  # GitPython
 # ---------------------------------------------------------------------------
 
 #: Root directory where all repos are cloned.
-CLONE_BASE_DIR = Path("/tmp/repolens")
+CLONE_BASE_DIR = Path(tempfile.gettempdir()) / "repolens"
 
 #: Maximum file size (bytes) to include. Files larger than this are skipped.
 MAX_FILE_BYTES = 100 * 1024  # 100 KB

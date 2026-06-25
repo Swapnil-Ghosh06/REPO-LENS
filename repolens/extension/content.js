@@ -72,20 +72,47 @@ function injectPanelCSS() {
 let panelMounted = false;
 
 /**
- * Fetches panel.html, inserts it into the container, then loads panel.js.
- * Called only the first time the trigger is clicked.
+ * Loads a script by creating a <script> element. Returns a Promise that
+ * resolves when the script has loaded.
+ */
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+/**
+ * Fetches panel.html, inserts it into the container, then loads scripts
+ * in the correct order: marked → highlight.js → panel.js.
+ *
+ * Scripts inside innerHTML are NOT executed by the browser (HTML spec),
+ * so we strip them and load each one dynamically via createElement.
  */
 async function mountPanel(container) {
   try {
     const htmlUrl = chrome.runtime.getURL("panel/panel.html");
     const response = await fetch(htmlUrl);
-    const html = await response.text();
+    let html = await response.text();
+
+    // Strip <script> tags — they won't execute via innerHTML anyway
+    html = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
+
     container.innerHTML = html;
 
-    // Load panel.js — it bootstraps all panel logic once inserted
-    const script = document.createElement("script");
-    script.src = chrome.runtime.getURL("panel/panel.js");
-    document.head.appendChild(script);
+    // Inject highlight.js theme CSS
+    const hljsCss = document.createElement("link");
+    hljsCss.rel = "stylesheet";
+    hljsCss.href = chrome.runtime.getURL("lib/github-dark.min.css");
+    document.head.appendChild(hljsCss);
+
+    // Load scripts in order: marked → highlight.js → panel.js
+    await loadScript(chrome.runtime.getURL("lib/marked.min.js"));
+    await loadScript(chrome.runtime.getURL("lib/highlight.min.js"));
+    await loadScript(chrome.runtime.getURL("panel/panel.js"));
 
     panelMounted = true;
   } catch (err) {

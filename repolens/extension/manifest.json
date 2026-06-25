@@ -15,6 +15,12 @@
   "background": {
     "service_worker": "background.js"
   },
+  "web_accessible_resources": [
+    {
+      "resources": ["panel/*", "lib/*"],
+      "matches": ["https://github.com/*"]
+    }
+  ],
   "browser_specific_settings": {
     "gecko": {
       "id": "repolens@extension",

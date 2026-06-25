@@ -59,16 +59,43 @@
    all: initial resets every inherited GitHub style.
    We then re-apply everything explicitly so it is fully isolated.
    ---------------------------------------------------------------- */
-#rl-container {
-  all: initial;
-
-  /* Layout */
+/* ----------------------------------------------------------------
+   OUTER WRAPPER — positioned + animated by content.js
+   content.js toggles .open on this element.
+   ---------------------------------------------------------------- */
+#rl-panel-container {
   position: fixed;
   top: 0;
   right: 0;
   width: 380px;
   height: 100vh;
   z-index: 999999;
+
+  /* Slide animation — panel starts off-screen right */
+  transform: translateX(100%);
+  transition: transform 0.2s ease-out;
+
+  /* No visual styling here — that's on #rl-container */
+  pointer-events: none;
+}
+
+/* JS adds this class to open the panel */
+#rl-panel-container.open {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+/* ----------------------------------------------------------------
+   INNER CONTAINER — visual styling + flex layout
+   all: initial resets every inherited GitHub style.
+   We then re-apply everything explicitly so it is fully isolated.
+   ---------------------------------------------------------------- */
+#rl-container {
+  all: initial;
+
+  /* Fill the outer wrapper */
+  width: 100%;
+  height: 100%;
 
   /* Visual */
   background: var(--bg-primary);
@@ -84,15 +111,6 @@
   color: var(--text-primary);
   line-height: 1.5;
   box-sizing: border-box;
-
-  /* Slide animation — panel starts off-screen right */
-  transform: translateX(100%);
-  transition: transform 0.2s ease-out;
-}
-
-/* JS adds this class to open the panel */
-#rl-container.open {
-  transform: translateX(0);
 }
 
 /* Ensure all children inherit box-sizing from the container */

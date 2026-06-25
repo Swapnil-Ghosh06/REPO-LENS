@@ -448,11 +448,17 @@ async function sendQuestion(question) {
 
 async function init() {
   // ── 1. Resolve identity from container dataset ─────────────────────────────
+  // content.js sets data-repo-url on #rl-panel-container (outer wrapper).
+  // #rl-container (inner, from panel.html) does NOT have it.
+  const outerContainer = document.getElementById("rl-panel-container");
   const container = document.getElementById("rl-container");
   if (!container) return;
 
-  repoUrl  = container.dataset.repoUrl ?? "";
+  repoUrl  = outerContainer?.dataset?.repoUrl ?? "";
   repoName = repoUrl.replace("https://github.com/", "");
+
+  // Propagate to inner container for any child components that may need it
+  if (container) container.dataset.repoUrl = repoUrl;
 
   const repoNameEl    = document.getElementById("rl-repo-name");
   const repoDisplayEl = document.getElementById("rl-repo-display");
@@ -496,9 +502,12 @@ async function init() {
 // EVENT LISTENERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Close button — slides the panel off-screen */
+/** Close button — slides the panel off-screen.
+ *  The 'open' class is on #rl-panel-container (set by content.js),
+ *  NOT on #rl-container (inner panel div).
+ */
 document.getElementById("rl-close")?.addEventListener("click", () => {
-  document.getElementById("rl-container")?.classList.remove("open");
+  document.getElementById("rl-panel-container")?.classList.remove("open");
 });
 
 /** Copy command button (OFFLINE state) */
