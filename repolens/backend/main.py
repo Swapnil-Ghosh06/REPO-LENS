@@ -187,7 +187,7 @@ def run_index_job(job_id: str) -> None:
             job["total_files"] = total
             job["progress"] = 50 + int((done / total) * 50) if total > 0 else 50
 
-        embedded = embed_chunks(chunks, repo_name=job["repo_name"], progress_callback=embed_progress)
+        embedded = embed_chunks(chunks, repo_name=job["repo_name"], progress_callback=embed_progress, job_id=job_id)
         store_chunks(job["repo_url"], embedded)
 
         job["status"] = "done"
@@ -342,7 +342,96 @@ async def query_repo(request: QueryRequest):
 
 
 # ---------------------------------------------------------------------------
-# ENDPOINT 4 — GET /health
+# ENDPOINT — GET /resume/{job_id}
+# ---------------------------------------------------------------------------
+
+
+@app.get("/resume/{job_id}", status_code=202)
+async def resume_job(job_id: str):
+    job = jobs.get(job_id)
+    if job is None:
+        if os.path.exists(DB_PATH):
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,))
+            row = cursor.fetchone()
+            conn.close()
+            if row:
+                job = dict(row)
+                jobs[job_id] = job
+            else:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": "not_found", "message": "Job not found"},
+                )
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "not_found", "message": "Job not found"},
+            )
+
+    failed_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"failed_chunks_{job_id}.json")
+    if not os.path.exists(failed_file):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "no_failed_chunks", "message": "No failed chunks found for this job ID"},
+        )
+
+    # Reset job fields and kick off background thread
+    job["status"] = "indexing"
+    job["error"] = None
+    job["progress"] = 50
+    persist_job(job_id)
+
+    def run_resume():
+        try:
+            with open(failed_file, "r") as f:
+                failed_ids = set(json.load(f))
+
+            files = crawl_repo(job["repo_url"])
+            chunks = chunk_files(files)
+
+            failed_chunks = [c for c in chunks if c.get("chunk_id") in failed_ids]
+            if not failed_chunks:
+                try:
+                    os.remove(failed_file)
+                except OSError:
+                    pass
+                job["status"] = "done"
+                job["progress"] = 100
+                persist_job(job_id)
+                return
+
+            def resume_progress(done: int, total: int) -> None:
+                job["files_processed"] = done
+                job["total_files"] = total
+                job["progress"] = 50 + int((done / total) * 50) if total > 0 else 50
+                persist_job(job_id)
+
+            embedded = embed_chunks(failed_chunks, repo_name=job["repo_name"], progress_callback=resume_progress, job_id=job_id)
+            store_chunks(job["repo_url"], embedded)
+
+            try:
+                os.remove(failed_file)
+            except OSError:
+                pass
+
+            job["status"] = "done"
+            job["progress"] = 100
+            persist_job(job_id)
+
+        except Exception as e:
+            job["status"] = "error"
+            job["error"] = str(e)
+            persist_job(job_id)
+
+    threading.Thread(target=run_resume, daemon=True).start()
+    return JSONResponse(content={"job_id": job_id, "status": "resumed"})
+
+
+# ---------------------------------------------------------------------------
+# ENDPOINT — GET /health
 # ---------------------------------------------------------------------------
 
 

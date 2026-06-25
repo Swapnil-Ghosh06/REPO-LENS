@@ -110,4 +110,8 @@ def stream_answer(
 
     except Exception as exc:
         # Step 8: surface any error as an SSE error event
-        yield f"event: error\ndata: {json.dumps({'message': str(exc)})}\n\n"
+        err_str = str(exc).upper()
+        if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+            yield f'event: error\ndata: {json.dumps({"message": "rate_limit", "user_message": "Gemini daily limit reached. Try again tomorrow or add a paid API key."})}\n\n'
+        else:
+            yield f"event: error\ndata: {json.dumps({'message': str(exc)})}\n\n"

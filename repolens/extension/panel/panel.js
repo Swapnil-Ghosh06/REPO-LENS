@@ -379,6 +379,10 @@ async function sendQuestion(question) {
   if (sendBtn) sendBtn.disabled = true;
   if (input)   input.disabled  = true;
 
+  // Clear any existing rate limit banner
+  const existingBanner = document.querySelector(".rl-rate-limit-banner");
+  if (existingBanner) existingBanner.remove();
+
   // ── Optimistic user bubble ────────────────────────────────────────────────
   appendMessage("user", question);
   scrollToBottom();
@@ -470,8 +474,13 @@ async function sendQuestion(question) {
           saveToHistory(repoUrl, question, fullText, sources);
 
         } else if (eventType === "error") {
-          assistantDiv.textContent = `Error: ${data.message ?? "Unknown error"}`;
-          assistantDiv.style.color = "var(--error)";
+          if (data.message === "rate_limit") {
+            if (assistantDiv) assistantDiv.remove();
+            showRateLimitBanner(data.user_message);
+          } else {
+            assistantDiv.textContent = `Error: ${data.message ?? "Unknown error"}`;
+            assistantDiv.style.color = "var(--error)";
+          }
         }
       }
     }
@@ -640,4 +649,34 @@ if (document.readyState === "loading") {
 } else {
   // DOM is already ready (e.g. panel injected dynamically after parse)
   init();
+}
+
+function showRateLimitBanner(userMessage) {
+  const existing = document.querySelector(".rl-rate-limit-banner");
+  if (existing) existing.remove();
+
+  const banner = document.createElement("div");
+  banner.className = "rl-rate-limit-banner";
+
+  const msgSpan = document.createElement("span");
+  msgSpan.textContent = userMessage || "Gemini daily limit reached.";
+  banner.appendChild(msgSpan);
+
+  const upgradeLink = document.createElement("a");
+  upgradeLink.textContent = "Upgrade on Google AI Studio";
+  upgradeLink.href = "https://aistudio.google.com/";
+  upgradeLink.target = "_blank";
+  upgradeLink.rel = "noopener noreferrer";
+
+  upgradeLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    window.open("https://aistudio.google.com/", "_blank");
+  });
+
+  banner.appendChild(upgradeLink);
+
+  const container = document.getElementById("rl-container");
+  if (container) {
+    container.appendChild(banner);
+  }
 }

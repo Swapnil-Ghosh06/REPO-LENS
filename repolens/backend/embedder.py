@@ -42,7 +42,7 @@ def build_context_string(chunk: dict, repo_name: str) -> str:
     return header + content
 
 
-def embed_chunks(chunks: list[dict], repo_name: str, progress_callback=None) -> list[dict]:
+def embed_chunks(chunks: list[dict], repo_name: str, progress_callback=None, job_id: str = None) -> list[dict]:
     """Embed a list of parsed code chunks using Gemini gemini-embedding-001.
 
     Args:
@@ -159,6 +159,20 @@ def embed_chunks(chunks: list[dict], repo_name: str, progress_callback=None) -> 
         # Sleep between batches to respect rate limits; skip after the last batch
         if batch_index < total_batches - 1:
             time.sleep(rate_limit_delay)
+
+    # Identify un-embedded chunks (e.g. due to 429 rate limits or other failures)
+    embedded_ids = {c["chunk_id"] for c in embedded_chunks if "chunk_id" in c}
+    failed_chunk_ids = [c["chunk_id"] for c in chunks if "chunk_id" in c and c["chunk_id"] not in embedded_ids]
+
+    if failed_chunk_ids and job_id:
+        import json
+        failed_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"failed_chunks_{job_id}.json")
+        try:
+            with open(failed_file, "w") as f:
+                json.dump(failed_chunk_ids, f)
+            print(f"[INFO] Saved {len(failed_chunk_ids)} failed chunk IDs to {failed_file}")
+        except Exception as e:
+            print(f"[WARNING] Failed to write failed chunks file: {e}")
 
     return embedded_chunks
 
