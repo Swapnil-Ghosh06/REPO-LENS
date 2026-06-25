@@ -8,6 +8,7 @@
   "content_scripts": [
     {
       "matches": ["https://github.com/*/*"],
+      "css": ["panel/panel.css"],
       "js": ["lib/browser-polyfill.min.js", "content.js"],
       "run_at": "document_idle"
     }

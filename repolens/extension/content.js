@@ -40,10 +40,18 @@ function parseRepoUrl(url) {
 
 /** Creates and appends the floating trigger button to document.body. */
 function injectTriggerButton() {
-  const btn = document.createElement("div");
+  const btn = document.createElement("button");
   btn.id = "rl-trigger";
-  btn.textContent = "</>";
   btn.title = "Open RepoLens";
+
+  const dot = document.createElement("span");
+  dot.id = "rl-trigger-dot";
+  btn.appendChild(dot);
+
+  const label = document.createElement("span");
+  label.textContent = "</> RepoLens";
+  btn.appendChild(label);
+
   document.body.appendChild(btn);
   return btn;
 }

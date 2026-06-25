@@ -72,6 +72,11 @@ const DOT_COLORS = {
 function updateStatusDot(state) {
   const dot = document.getElementById("rl-status-dot");
   if (dot) dot.style.background = DOT_COLORS[state] ?? DOT_COLORS.idle;
+
+  const triggerDot = document.getElementById("rl-trigger-dot");
+  if (triggerDot) {
+    triggerDot.style.background = DOT_COLORS[state] ?? DOT_COLORS.idle;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
