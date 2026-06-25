@@ -4,7 +4,7 @@ embedder.py - RepoLens embedding module.
 Takes a list of parsed code chunks and produces dense vector embeddings
 using the Gemini gemini-embedding-001 model (3072 dimensions) via google-genai.
 
-Chunks are processed in batches of 20 with a 1-second sleep between batches
+Chunks are processed in batches of 20 with a configurable sleep between batches
 to respect Gemini API rate limits. Each input chunk dict is returned with an
 additional "embedding" key holding a list[float] and "context_string" holding the
 formatted string sent to the embedding model.
@@ -29,7 +29,7 @@ def build_context_string(chunk: dict, repo_name: str) -> str:
     Truncates content to 8000 characters max as per the spec.
     """
     header = (
-        f"File: {chunk['file_path']}\n"
+        f"File: {chunk['relative_path']}\n"
         f"Language: {chunk['language']}\n"
         f"Type: {chunk['chunk_type']}\n"
         f"Name: {chunk['name']}\n"
@@ -60,55 +60,95 @@ def embed_chunks(chunks: list[dict], repo_name: str, progress_callback=None) -> 
     batch_size = 20
     total_batches = (len(chunks) + batch_size - 1) // batch_size
     embedded_chunks: list[dict] = []
+    
+    rate_limit_delay = float(os.getenv("RATE_LIMIT_DELAY", "1.0"))
 
     for batch_index in range(total_batches):
         start = batch_index * batch_size
         end = start + batch_size
         batch = chunks[start:end]
 
-        print(f"Embedding batch {batch_index + 1}/{total_batches}...")
-
         # Prepare context strings
         batch_contexts = [build_context_string(c, repo_name) for c in batch]
+        
+        retry_count = 0
+        batch_success = False
 
-        try:
-            # Batch embedding API call
-            result = client.models.embed_content(
-                model="models/gemini-embedding-001",
-                contents=batch_contexts,
-                config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
-            )
-            
-            # Map results back to chunks
-            for i, chunk in enumerate(batch):
-                vector = result.embeddings[i].values
-                embedded_chunks.append({
-                    **chunk,
-                    "context_string": batch_contexts[i],
-                    "embedding": list(vector)
-                })
-        except Exception as exc:
-            # Fall back to single embedding calls if the batch fails, or print warnings
-            print(f"[WARNING] Batch {batch_index + 1} embedding failed: {exc}. Retrying items individually...")
-            for i, chunk in enumerate(batch):
-                ctx_str = batch_contexts[i]
-                try:
-                    result = client.models.embed_content(
-                        model="models/gemini-embedding-001",
-                        contents=ctx_str,
-                        config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
-                    )
-                    vector = result.embeddings[0].values
+        while retry_count < 5:
+            if retry_count > 0:
+                print(f"Embedding batch {batch_index + 1}/{total_batches} (Retry {retry_count}/5)...")
+            else:
+                print(f"Embedding batch {batch_index + 1}/{total_batches}...")
+
+            try:
+                # Batch embedding API call
+                result = client.models.embed_content(
+                    model="models/gemini-embedding-001",
+                    contents=batch_contexts,
+                    config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
+                )
+                
+                # Map results back to chunks
+                for i, chunk in enumerate(batch):
+                    vector = result.embeddings[i].values
                     embedded_chunks.append({
                         **chunk,
-                        "context_string": ctx_str,
+                        "context_string": batch_contexts[i],
                         "embedding": list(vector)
                     })
-                except Exception as item_exc:
-                    print(
-                        f"[WARNING] Failed to embed chunk '{chunk.get('name', '?')}'"
-                        f" in {chunk.get('file_path', '?')}: {item_exc}"
-                    )
+                batch_success = True
+                break
+            except Exception as exc:
+                err_str = str(exc).upper()
+                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "QUOTA" in err_str:
+                    retry_count += 1
+                    if retry_count < 5:
+                        delay = min(2 ** retry_count, 60)
+                        print(f"[WARNING] Rate limit hit. Backing off for {delay} seconds...")
+                        time.sleep(delay)
+                    else:
+                        print(f"[WARNING] Batch {batch_index + 1} failed after 5 retries due to rate limits. Skipping.")
+                else:
+                    # Fall back to single embedding calls if the batch fails with non-429
+                    print(f"[WARNING] Batch {batch_index + 1} embedding failed: {exc}. Retrying items individually...")
+                    break
+        
+        # If batch failed with non-429, try individually
+        if not batch_success and retry_count < 5:
+            for i, chunk in enumerate(batch):
+                ctx_str = batch_contexts[i]
+                item_retry = 0
+                
+                while item_retry < 5:
+                    try:
+                        result = client.models.embed_content(
+                            model="models/gemini-embedding-001",
+                            contents=ctx_str,
+                            config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
+                        )
+                        vector = result.embeddings[0].values
+                        embedded_chunks.append({
+                            **chunk,
+                            "context_string": ctx_str,
+                            "embedding": list(vector)
+                        })
+                        break
+                    except Exception as item_exc:
+                        item_err = str(item_exc).upper()
+                        if "429" in item_err or "RESOURCE_EXHAUSTED" in item_err or "QUOTA" in item_err:
+                            item_retry += 1
+                            if item_retry < 5:
+                                delay = min(2 ** item_retry, 60)
+                                print(f"[WARNING] Rate limit hit on chunk '{chunk.get('name', '?')}'. Backing off for {delay} seconds...")
+                                time.sleep(delay)
+                            else:
+                                print(f"[WARNING] Chunk '{chunk.get('name', '?')}' failed after 5 rate-limit retries: {item_exc}")
+                        else:
+                            print(
+                                f"[WARNING] Failed to embed chunk '{chunk.get('name', '?')}'"
+                                f" in {chunk.get('relative_path', '?')}: {item_exc}"
+                            )
+                            break
 
         if progress_callback:
             try:
@@ -118,7 +158,7 @@ def embed_chunks(chunks: list[dict], repo_name: str, progress_callback=None) -> 
 
         # Sleep between batches to respect rate limits; skip after the last batch
         if batch_index < total_batches - 1:
-            time.sleep(1)
+            time.sleep(rate_limit_delay)
 
     return embedded_chunks
 

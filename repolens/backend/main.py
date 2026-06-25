@@ -8,6 +8,9 @@ import uuid
 import time
 import json
 import os
+import sqlite3
+import re
+import httpx
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
@@ -36,10 +39,37 @@ app = FastAPI(title="RepoLens API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["chrome-extension://", "moz-extension://", "http://localhost", "http://127.0.0.1"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
+
+# ---------------------------------------------------------------------------
+# SQLite Persistence
+# ---------------------------------------------------------------------------
+
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs.db")
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS jobs (
+            job_id TEXT PRIMARY KEY,
+            repo_url TEXT,
+            repo_name TEXT,
+            status TEXT,
+            progress INTEGER,
+            files_processed INTEGER,
+            total_files INTEGER,
+            current_file TEXT,
+            elapsed_seconds INTEGER,
+            error TEXT,
+            started_at REAL
+        )
+    """)
+    conn.commit()
+    conn.close()
 
 # ---------------------------------------------------------------------------
 # In-memory job store
@@ -50,6 +80,50 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 jobs: dict[str, dict] = {}
+
+def load_jobs_from_db():
+    if not os.path.exists(DB_PATH):
+        return
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM jobs")
+    for row in cursor.fetchall():
+        jobs[row["job_id"]] = dict(row)
+    conn.close()
+
+def persist_job(job_id: str) -> None:
+    job = jobs.get(job_id)
+    if not job:
+        return
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT OR REPLACE INTO jobs (
+            job_id, repo_url, repo_name, status, progress, 
+            files_processed, total_files, current_file, 
+            elapsed_seconds, error, started_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        job["job_id"],
+        job["repo_url"],
+        job["repo_name"],
+        job["status"],
+        job["progress"],
+        job["files_processed"],
+        job["total_files"],
+        job["current_file"],
+        job["elapsed_seconds"],
+        job["error"],
+        job["started_at"]
+    ))
+    conn.commit()
+    conn.close()
+
+@app.on_event("startup")
+def startup_event():
+    init_db()
+    load_jobs_from_db()
 
 # ---------------------------------------------------------------------------
 # Request / Response models
@@ -77,14 +151,19 @@ def run_index_job(job_id: str) -> None:
         start = time.time()
 
         def update_elapsed() -> None:
+            last_persist = time.time()
             while job["status"] not in ("done", "error"):
                 job["elapsed_seconds"] = int(time.time() - start)
+                if time.time() - last_persist >= 10:
+                    persist_job(job_id)
+                    last_persist = time.time()
                 time.sleep(1)
 
         threading.Thread(target=update_elapsed, daemon=True).start()
 
         # ── Phase 1: crawling (0 → 50 %) ───────────────────────────────────
         job["status"] = "cloning"
+        persist_job(job_id)
 
         def file_progress(done: int, total: int, current: str) -> None:
             job["files_processed"] = done
@@ -96,10 +175,12 @@ def run_index_job(job_id: str) -> None:
 
         # ── Phase 2: parsing ────────────────────────────────────────────────
         job["status"] = "parsing"
+        persist_job(job_id)
         chunks = chunk_files(files)
 
         # ── Phase 3: embedding + storing (50 → 100 %) ──────────────────────
         job["status"] = "indexing"
+        persist_job(job_id)
 
         def embed_progress(done: int, total: int) -> None:
             job["files_processed"] = done
@@ -111,10 +192,12 @@ def run_index_job(job_id: str) -> None:
 
         job["status"] = "done"
         job["progress"] = 100
+        persist_job(job_id)
 
     except Exception as exc:
         job["status"] = "error"
         job["error"] = str(exc)
+        persist_job(job_id)
 
 
 # ---------------------------------------------------------------------------
@@ -127,14 +210,33 @@ async def index_repo(request: IndexRequest):
     repo_url = request.repo_url.strip()
 
     # Validate URL
-    if not repo_url.startswith("https://github.com/"):
+    if not re.match(r'^https://github\.com/[a-zA-Z0-9_.-]{1,100}/[a-zA-Z0-9_.-]{1,100}$', repo_url):
         return JSONResponse(
             status_code=400,
             content={
                 "error": "invalid_url",
-                "message": "URL must start with https://github.com/",
+                "message": "URL must be a valid GitHub repository URL (https://github.com/owner/repo)",
             },
         )
+
+    repo_name = repo_url.replace("https://github.com/", "")
+
+    # MAX_REPO_SIZE check
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"https://api.github.com/repos/{repo_name}", timeout=5.0)
+            if resp.status_code == 200:
+                size_kb = resp.json().get("size", 0)
+                if size_kb > 500000:
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": "too_large",
+                            "message": "Repository is too large to index (>500MB)",
+                        },
+                    )
+    except httpx.RequestError:
+        pass
 
     # Duplicate-in-progress guard
     active_statuses = {"cloning", "parsing", "indexing", "queued"}
@@ -152,7 +254,6 @@ async def index_repo(request: IndexRequest):
                 },
             )
 
-    repo_name = repo_url.replace("https://github.com/", "")
     job_id = uuid.uuid4().hex[:8]
 
     jobs[job_id] = {
@@ -168,6 +269,8 @@ async def index_repo(request: IndexRequest):
         "error": None,
         "started_at": time.time(),
     }
+
+    persist_job(job_id)
 
     threading.Thread(target=run_index_job, args=(job_id,), daemon=True).start()
 
@@ -186,10 +289,26 @@ async def index_repo(request: IndexRequest):
 async def get_status(job_id: str):
     job = jobs.get(job_id)
     if job is None:
-        return JSONResponse(
-            status_code=404,
-            content={"error": "not_found", "message": "Job not found"},
-        )
+        if os.path.exists(DB_PATH):
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,))
+            row = cursor.fetchone()
+            conn.close()
+            if row:
+                job = dict(row)
+                jobs[job_id] = job
+            else:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": "not_found", "message": "Job not found"},
+                )
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "not_found", "message": "Job not found"},
+            )
     return JSONResponse(content=job)
 
 

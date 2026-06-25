@@ -76,7 +76,7 @@ def stream_answer(
             meta = r["metadata"]
             user_message += (
                 f"--- CHUNK {i} ---\n"
-                f"File: {meta['file_path']} "
+                f"File: {meta['relative_path']} "
                 f"(lines {meta['start_line']}-{meta['end_line']})\n"
                 f"Type: {meta['chunk_type']} | Name: {meta['name']}\n\n"
                 f"{r['document']}\n\n"
@@ -98,7 +98,7 @@ def stream_answer(
         # Step 7: emit sources then done
         sources = [
             {
-                "file": r["metadata"]["file_path"],
+                "file": f"https://github.com/{r['metadata']['repo_name']}/blob/main/{r['metadata']['relative_path']}#L{r['metadata']['start_line']}",
                 "line": r["metadata"]["start_line"],
                 "chunk_type": r["metadata"]["chunk_type"],
                 "name": r["metadata"]["name"],

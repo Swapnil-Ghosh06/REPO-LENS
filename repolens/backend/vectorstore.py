@@ -85,7 +85,7 @@ def store_chunks(repo_url: str, chunks: list[dict]) -> None:
                 "chunk_id":  str(c["chunk_id"]),
                 "repo_url":  str(repo_url),
                 "repo_name": str(repo_name),
-                "file_path": str(c["file_path"]),
+                "relative_path": str(c["relative_path"]),
                 "language":  str(c["language"]),
                 "chunk_type": str(c["chunk_type"]),
                 "name":      str(c["name"]),

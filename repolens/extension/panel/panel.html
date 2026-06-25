@@ -27,6 +27,7 @@
     <div id="rl-header-left">
       <span id="rl-status-dot"></span>
       <span id="rl-header-label">RepoLens</span>
+      <span id="rl-header-sep">/</span>
       <span id="rl-repo-name">—</span>
     </div>
     <button id="rl-close" title="Close panel" aria-label="Close RepoLens panel">×</button>
@@ -43,8 +44,8 @@
     <p id="rl-offline-body">Start the RepoLens backend to use this extension.</p>
     <div id="rl-offline-code-block">
       <code id="rl-offline-cmd">uvicorn main:app --reload</code>
+      <button id="rl-copy-cmd">Copy</button>
     </div>
-    <button id="rl-copy-cmd">Copy command</button>
   </div>
 
   <!-- STATE: NOT INDEXED -->
@@ -66,19 +67,19 @@
       <span id="rl-progress-pct">0%</span>
     </div>
     <p id="rl-current-file">↳ </p>
-    <p id="rl-elapsed">Elapsed: 0:00</p>
+    <p id="rl-elapsed">0:00</p>
   </div>
 
   <!-- STATE: READY (chat interface) -->
   <div id="state-ready" class="rl-state">
     <div id="rl-messages" role="log" aria-live="polite" aria-label="Chat messages"></div>
     <div id="rl-ready-footer">
-      <button id="rl-map-btn" title="Generate a repository map">Map Repo</button>
+      <button id="rl-map-btn" title="Generate a repository map">Map</button>
     </div>
   </div>
 
   <!-- ============================================================
-       INPUT BAR — 56px, only visible when state-ready is active
+       INPUT BAR — only visible when state-ready is active
        Controlled via CSS: #state-ready.active ~ #rl-input-bar { display: flex; }
        ============================================================ -->
   <div id="rl-input-bar" role="search">
@@ -89,7 +90,7 @@
       aria-label="Ask a question about this repository"
     ></textarea>
     <button id="rl-send" aria-label="Send message" title="Send">
-      <!-- → arrow SVG, 16px -->
+      <!-- ↑ arrow SVG, 16px -->
       <svg
         width="16"
         height="16"
@@ -99,7 +100,7 @@
         aria-hidden="true"
       >
         <path
-          d="M1 8h14M9 2l6 6-6 6"
+          d="M8 14V2M2 8l6-6 6 6"
           stroke="currentColor"
           stroke-width="1.5"
           stroke-linecap="round"

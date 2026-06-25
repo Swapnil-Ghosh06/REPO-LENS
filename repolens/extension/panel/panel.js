@@ -250,22 +250,75 @@ function renderCitations(sources, msgDiv, container) {
   const parent = container || document.getElementById("rl-messages");
   if (!parent) return;
 
+  // ── 1. Group by file (relative_path), collecting line numbers per file ──────
+  const fileMap = new Map(); // relative_path → { github_url, lines: Set<number> }
+
+  for (const src of sources) {
+    const key = src.relative_path || src.file || "unknown";
+    if (!fileMap.has(key)) {
+      fileMap.set(key, {
+        github_url: src.github_url || null,
+        relative_path: key,
+        lines: new Set(),
+      });
+    }
+    if (src.line) fileMap.get(key).lines.add(Number(src.line));
+  }
+
+  // ── 2. Build the citations row ───────────────────────────────────────────────
   const row = document.createElement("div");
   row.classList.add("rl-citations");
 
-  for (const src of sources) {
-    const chip    = document.createElement("a");
-    const display = src.line ? `${src.file}:${src.line}` : src.file;
-    chip.textContent = display;
-    chip.className   = "rl-citation-chip";
-    chip.href        = `https://github.com/${repoName}/blob/main/${src.file}${src.line ? `#L${src.line}` : ""}`;
-    chip.target      = "_blank";
-    chip.rel         = "noopener noreferrer";
+  // "N sources" label
+  const label = document.createElement("span");
+  label.className = "rl-citations-label";
+  label.textContent = `${fileMap.size} source${fileMap.size !== 1 ? "s" : ""}`;
+  row.appendChild(label);
+
+  // ── 3. One chip per unique file ──────────────────────────────────────────────
+  for (const [relativePath, info] of fileMap) {
+    const chip = document.createElement("a");
+    chip.className = "rl-citation-chip";
+    chip.rel = "noopener noreferrer";
+
+    // Tooltip — full relative path
+    chip.title = relativePath;
+
+    // Basename, truncated to 30 chars with ellipsis
+    const basename = relativePath.split("/").pop() || relativePath;
+    const displayName =
+      basename.length > 30 ? basename.slice(0, 27) + "\u2026" : basename;
+
+    // Line numbers — sorted, comma-separated
+    const sortedLines = [...info.lines].sort((a, b) => a - b);
+    const lineLabel = sortedLines.length > 0 ? `:${sortedLines.join(",")}` : "";
+
+    chip.textContent = displayName + lineLabel;
+
+    // Link — prefer backend-provided github_url; fall back to first line anchor
+    if (info.github_url) {
+      // github_url from backend already includes #L{line}; strip fragment and
+      // re-add first line so grouped chips still land on the right spot
+      const baseUrl = info.github_url.split("#")[0];
+      chip.href = sortedLines.length > 0 ? `${baseUrl}#L${sortedLines[0]}` : baseUrl;
+    } else {
+      // Fallback: reconstruct from repoName if backend didn't provide github_url
+      chip.href = `https://github.com/${repoName}/blob/main/${relativePath}${
+        sortedLines.length > 0 ? `#L${sortedLines[0]}` : ""
+      }`;
+    }
+
+    // Open in new tab via window.open (avoids extension CSP issues with href navigation)
+    chip.addEventListener("click", (e) => {
+      e.preventDefault();
+      window.open(chip.href, "_blank");
+    });
+
     row.appendChild(chip);
   }
 
-  // Insert immediately after the assistant div
-  if (msgDiv.nextSibling) {
+  // ── 4. Insert immediately after the assistant message div ───────────────────
+  if (msgDiv && msgDiv.nextSibling) {
     parent.insertBefore(row, msgDiv.nextSibling);
   } else {
     parent.appendChild(row);

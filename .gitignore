@@ -160,3 +160,13 @@ dist/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+chroma_data/
+chroma_test/
+*.sqlite3
+backend/.env
+__pycache__/
+*.pyc
+venv/
+.venv/
+jobs.db
