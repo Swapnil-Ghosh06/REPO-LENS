@@ -147,6 +147,4 @@ Local Backend (localhost:8000)
 
 ---
 
-## License
 
-MIT

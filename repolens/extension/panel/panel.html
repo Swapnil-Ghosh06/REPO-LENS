@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RepoLens</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+
+<!-- ================================================================
+     ROOT CONTAINER — all: initial isolates from GitHub's CSS
+     JS adds class "open" to slide in via transform
+     ================================================================ -->
+<div id="rl-container">
+
+  <!-- ============================================================
+       HEADER — always visible, 48px
+       ============================================================ -->
+  <header id="rl-header">
+    <div id="rl-header-left">
+      <span id="rl-status-dot"></span>
+      <span id="rl-header-label">RepoLens</span>
+      <span id="rl-repo-name">—</span>
+    </div>
+    <button id="rl-close" title="Close panel" aria-label="Close RepoLens panel">×</button>
+  </header>
+
+  <!-- ============================================================
+       CONTENT AREA — exactly one state has class "active" at a time
+       ============================================================ -->
+
+  <!-- STATE: OFFLINE -->
+  <div id="state-offline" class="rl-state">
+    <span id="rl-offline-icon" aria-hidden="true">⚠</span>
+    <h2 id="rl-offline-heading">Backend not running</h2>
+    <p id="rl-offline-body">Start the RepoLens backend to use this extension.</p>
+    <div id="rl-offline-code-block">
+      <code id="rl-offline-cmd">uvicorn main:app --reload</code>
+    </div>
+    <button id="rl-copy-cmd">Copy command</button>
+  </div>
+
+  <!-- STATE: NOT INDEXED -->
+  <div id="state-not-indexed" class="rl-state">
+    <p id="rl-repo-display">owner/repo</p>
+    <p id="rl-not-indexed-desc">This repository hasn't been indexed yet.</p>
+    <p id="rl-file-estimate">~? files · est. ? min</p>
+    <button id="rl-index-btn">Index Repository</button>
+  </div>
+
+  <!-- STATE: INDEXING -->
+  <div id="state-indexing" class="rl-state">
+    <p id="rl-indexing-label">Indexing repository...</p>
+    <div id="rl-progress-track">
+      <div id="rl-progress-fill"></div>
+    </div>
+    <div class="rl-stats-row">
+      <span id="rl-files-count">0 / ? files</span>
+      <span id="rl-progress-pct">0%</span>
+    </div>
+    <p id="rl-current-file">↳ </p>
+    <p id="rl-elapsed">Elapsed: 0:00</p>
+  </div>
+
+  <!-- STATE: READY (chat interface) -->
+  <div id="state-ready" class="rl-state">
+    <div id="rl-messages" role="log" aria-live="polite" aria-label="Chat messages"></div>
+    <div id="rl-ready-footer">
+      <button id="rl-map-btn" title="Generate a repository map">Map Repo</button>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       INPUT BAR — 56px, only visible when state-ready is active
+       Controlled via CSS: #state-ready.active ~ #rl-input-bar { display: flex; }
+       ============================================================ -->
+  <div id="rl-input-bar" role="search">
+    <textarea
+      id="rl-input"
+      placeholder="Ask about this codebase..."
+      rows="1"
+      aria-label="Ask a question about this repository"
+    ></textarea>
+    <button id="rl-send" aria-label="Send message" title="Send">
+      <!-- → arrow SVG, 16px -->
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <path
+          d="M1 8h14M9 2l6 6-6 6"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </button>
+  </div>
+
+</div><!-- /#rl-container -->
+
+<!-- ============================================================
+     SCRIPTS — loaded at bottom, defer
+     ============================================================ -->
+<script src="../lib/marked.min.js" defer></script>
+<script src="../lib/highlight.min.js" defer></script>
+<script src="panel.js" defer></script>
+
+</body>
+</html>
