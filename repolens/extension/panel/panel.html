@@ -33,10 +33,11 @@
        CONTENT AREA — exactly one state has class "active" at a time
        ============================================================ -->
 
-  <!-- STATE: HELP -->
-  <div id="state-help" class="rl-state">
+  <!-- HELP OVERLAY -->
+  <div id="rl-help-overlay">
     <div class="rl-help-header">
-      <button id="rl-help-back">← Back</button>
+      <span class="rl-help-title">Help & Documentation</span>
+      <button id="rl-help-close" title="Close help" aria-label="Close help">×</button>
     </div>
     <div class="rl-help-content">
       <h2>Getting Started</h2>
@@ -58,10 +59,10 @@
 
       <h2>Limitations</h2>
       <ul class="rl-help-list-bullet">
-        <li>Public repositories only (v1)</li>
-        <li>Maximum 500 files / 50MB per repo</li>
-        <li>Backend must be running on localhost:8000</li>
-        <li>Requires a free Gemini API key</li>
+        <li><span class="rl-bullet">•</span> Public repositories only (v1)</li>
+        <li><span class="rl-bullet">•</span> Maximum 500 files / 50MB per repo</li>
+        <li><span class="rl-bullet">•</span> Backend must be running on localhost:8000</li>
+        <li><span class="rl-bullet">•</span> Requires a free Gemini API key</li>
       </ul>
 
       <h2>API Limits</h2>
@@ -76,6 +77,9 @@
       <strong>Index fails →</strong> Repo may be too large (>500 files). Try a smaller repo.<br>
       <strong>Answer is wrong →</strong> Re-index the repo, the codebase may have changed.</p>
     </div>
+    <button id="rl-help-maximize" title="Toggle size" aria-label="Toggle size">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+    </button>
   </div>
 
   <!-- STATE: OFFLINE -->
@@ -101,7 +105,7 @@
   <div id="state-not-indexed" class="rl-state">
     <div class="rl-repo-card">
       <div class="rl-repo-card-icon" aria-hidden="true">
-        <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+        <svg width="48" height="48" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
           <path fill-rule="evenodd" d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 110-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5v-9zm10.5-1V9h-8c-.356 0-.694.074-1 .208V2.5a1 1 0 011-1h8zM5 12.25v3.25a.25.25 0 00.4.2l1.45-1.087a.25.25 0 01.3 0L8.6 15.7a.25.25 0 00.4-.2v-3.25a.25.25 0 00-.25-.25h-3.5a.25.25 0 00-.25.25z"></path>
         </svg>
       </div>
@@ -176,7 +180,10 @@
 
 </div><!-- /#rl-container -->
 
-
+<!-- Resizers for the entire panel -->
+<div id="rl-resizer-left" class="rl-resizer rl-resizer-left"></div>
+<div id="rl-resizer-bottom" class="rl-resizer rl-resizer-bottom"></div>
+<div id="rl-resizer-corner" class="rl-resizer rl-resizer-corner"></div>
 
 </body>
 </html>

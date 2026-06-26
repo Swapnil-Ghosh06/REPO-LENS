@@ -41,7 +41,6 @@ const STATE_IDS = {
   NOT_INDEXED: "state-not-indexed",
   INDEXING:    "state-indexing",
   READY:       "state-ready",
-  HELP:        "state-help",
 };
 
 /**
@@ -707,7 +706,7 @@ function bindListeners() {
     document.getElementById("rl-panel-container")?.classList.remove("open");
   });
 
-  /** Terminate button — completely stops reading the repo and removes the UI. */
+  /** Terminate button — hide panel instead of terminating script */
   document.getElementById("rl-close")?.addEventListener("click", async () => {
     // If indexing, send cancel request
     if (currentJobId) {
@@ -721,23 +720,32 @@ function bindListeners() {
            console.error("[RepoLens] Failed to cancel job:", err);
        }
     }
-    window.dispatchEvent(new CustomEvent("rl:terminate-panel"));
+    // Just minimize instead of terminating
+    document.getElementById("rl-panel-container")?.classList.remove("open");
   });
 
-  /** Help button */
+  /** Help toggle button */
   document.getElementById("rl-help-btn")?.addEventListener("click", () => {
-    // Find current active state by iterating over STATE_IDS
-    const activeKey = Object.keys(STATE_IDS).find(k => {
-      const el = document.getElementById(STATE_IDS[k]);
-      return el && el.classList.contains("active");
-    });
-    prevState = activeKey || "READY";
-    showState("HELP");
+    const overlay = document.getElementById("rl-help-overlay");
+    if (overlay) {
+      overlay.classList.add("open");
+    }
   });
 
-  /** Help back button */
-  document.getElementById("rl-help-back")?.addEventListener("click", () => {
-    showState(prevState || "READY");
+  /** Help close button */
+  document.getElementById("rl-help-close")?.addEventListener("click", () => {
+    const overlay = document.getElementById("rl-help-overlay");
+    if (overlay) {
+      overlay.classList.remove("open");
+    }
+  });
+
+  /** Help maximize toggle */
+  document.getElementById("rl-help-maximize")?.addEventListener("click", () => {
+    const overlay = document.getElementById("rl-help-overlay");
+    if (overlay) {
+      overlay.classList.toggle("maximized");
+    }
   });
 
   /** Copy command button (OFFLINE state) — SVG icon, show checkmark briefly */
@@ -821,6 +829,51 @@ function bindListeners() {
     this.style.height = "";
     this.style.height = Math.min(this.scrollHeight, 100) + "px";
   });
+
+  // ─── Custom Resizer Logic ───
+  const container = document.getElementById("rl-container");
+  
+  function setupResizer(id, direction) {
+    const resizer = document.getElementById(id);
+    if (!resizer) return;
+    
+    let isResizing = false;
+    let startX = 0, startY = 0;
+    let startWidth = 0, startHeight = 0;
+
+    resizer.addEventListener("mousedown", (e) => {
+      isResizing = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startWidth = parseInt(window.getComputedStyle(container).width, 10);
+      startHeight = parseInt(window.getComputedStyle(container).height, 10);
+      document.body.style.userSelect = "none";
+      e.stopPropagation();
+    });
+
+    document.addEventListener("mousemove", (e) => {
+      if (!isResizing) return;
+      if (direction === "left" || direction === "corner") {
+        const newWidth = startWidth + (startX - e.clientX);
+        if (newWidth >= 320) container.style.width = newWidth + "px";
+      }
+      if (direction === "bottom" || direction === "corner") {
+        const newHeight = startHeight + (e.clientY - startY);
+        if (newHeight >= 400) container.style.height = newHeight + "px";
+      }
+    });
+
+    document.addEventListener("mouseup", () => {
+      if (isResizing) {
+        isResizing = false;
+        document.body.style.userSelect = "";
+      }
+    });
+  }
+
+  setupResizer("rl-resizer-left", "left");
+  setupResizer("rl-resizer-bottom", "bottom");
+  setupResizer("rl-resizer-corner", "corner");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

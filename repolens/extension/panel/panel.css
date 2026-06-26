@@ -57,7 +57,7 @@
 
 /* ----------------------------------------------------------------
    TRIGGER BUTTON — injected into the GitHub page by content.js
-   Small pill, bottom-right corner. No box-shadow. No glow.
+   Small pill, bottom-right corner. Glassmorphism and glow.
    ---------------------------------------------------------------- */
 #rl-trigger {
   all: unset;
@@ -68,26 +68,33 @@
 
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
 
-  height: 28px;
-  padding: 0 10px;
+  height: 32px;
+  padding: 0 14px;
 
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: 14px;  /* pill shape */
+  /* Glassmorphism / Sleek Look */
+  background: rgba(22, 27, 34, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
-  color: #8b949e;
+  color: #e6edf3;
   cursor: pointer;
   white-space: nowrap;
+  transition: all 0.3s ease;
 }
 
 #rl-trigger:hover {
-  color: #e6edf3;
-  border-color: #58a6ff;
+  background: rgba(22, 27, 34, 0.8);
+  border-color: var(--accent);
+  box-shadow: 0 4px 20px rgba(88, 166, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
 }
 
 #rl-trigger-dot {
@@ -110,8 +117,6 @@
   position: fixed;
   top: 20px;
   right: 20px;
-  width: 380px;
-  height: calc(100vh - 40px);
   z-index: 999999;
 
   /* Slide animation — panel starts off-screen right with safety margin */
@@ -136,9 +141,13 @@
 #rl-container {
   all: initial;
 
-  /* Fill the outer wrapper */
-  width: 100%;
-  height: 100%;
+  /* Sizing and Resize */
+  width: 380px;
+  height: calc(100vh - 40px);
+  min-width: 320px;
+  min-height: 400px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 40px);
 
   /* Visual — floating box with soft rounded corners and premium drop shadow */
   background: var(--bg-primary);
@@ -266,6 +275,168 @@
 }
 
 /* ----------------------------------------------------------------
+   HELP OVERLAY
+   ---------------------------------------------------------------- */
+#rl-help-overlay {
+  position: absolute;
+  top: 48px; /* below header */
+  left: 0;
+  right: 0;
+  height: 60%;
+  background: rgba(13, 17, 23, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+#rl-help-overlay.open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#rl-help-overlay.maximized {
+  height: calc(100% - 48px);
+}
+
+.rl-help-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-muted);
+  flex-shrink: 0;
+}
+.rl-help-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+#rl-help-close {
+  all: unset;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+}
+#rl-help-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.rl-help-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.6;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.rl-help-content::-webkit-scrollbar {
+  width: 3px;
+}
+.rl-help-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.rl-help-content::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+
+/* Beautiful dynamic styling for help content */
+.rl-help-content h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 24px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rl-help-content h2:first-child {
+  margin-top: 0;
+}
+.rl-help-content p {
+  color: var(--text-secondary);
+  margin: 0 0 16px;
+}
+.rl-help-content strong {
+  color: var(--text-primary);
+}
+.rl-help-code {
+  font-family: var(--font-mono);
+  background: rgba(30, 36, 44, 0.8);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 11px;
+}
+.rl-help-list, .rl-help-list-bullet {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-muted);
+  border-radius: 8px;
+  padding: 12px;
+}
+.rl-help-list li, .rl-help-list-bullet li {
+  margin-bottom: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+.rl-help-list li:last-child, .rl-help-list-bullet li:last-child {
+  margin-bottom: 0;
+}
+.rl-check {
+  color: var(--success);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.rl-bullet {
+  color: var(--accent);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+#rl-help-maximize {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-muted);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+#rl-help-maximize:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+#rl-help-overlay.maximized #rl-help-maximize svg {
+  transform: rotate(180deg);
+}
+
+/* ----------------------------------------------------------------
    STATE: OFFLINE — terminal-style code block
    ---------------------------------------------------------------- */
 #state-offline {
@@ -356,37 +527,42 @@
    STATE: NOT INDEXED — ASCII art icon + full-width button
    ---------------------------------------------------------------- */
 #state-not-indexed {
-  padding: 20px 16px;
-  gap: 10px;
-  flex: 0 0 auto;
+  padding: 32px 24px;
+  gap: 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 /* Repo Card styling */
 .rl-repo-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  margin-bottom: 8px;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  margin-bottom: 12px;
 }
 
 .rl-repo-card-icon {
-  color: var(--accent);
-  margin-bottom: 4px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
 }
 
 #rl-repo-display {
   all: unset;
   display: block;
   font-family: var(--font-ui);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
   word-break: break-all;
+  margin-bottom: 4px;
 }
 
 #rl-not-indexed-desc {
@@ -404,15 +580,15 @@
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--text-muted);
+  background: var(--bg-hover);
+  padding: 4px 10px;
+  border-radius: 12px;
   margin-top: 4px;
 }
 
 /* Subtle divider before button */
 .rl-divider {
-  height: 1px;
-  background: var(--border-muted);
-  margin: 2px 0 4px;
-  flex-shrink: 0;
+  display: none;
 }
 
 /* Full-width index button with → arrow */
@@ -420,36 +596,42 @@
   all: unset;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
-  height: 40px;
-  padding: 0 16px;
-  background: #238636;
+  max-width: 240px;
+  height: 44px;
+  padding: 0 20px;
+  background: linear-gradient(180deg, #2ea043 0%, #238636 100%);
   border: 1px solid rgba(240, 246, 252, 0.1);
+  box-shadow: 0 2px 8px rgba(35, 134, 54, 0.2);
   color: #ffffff;
   font-family: var(--font-ui);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  line-height: 40px;
-  border-radius: 6px;
+  border-radius: 8px;
   transition: all 0.2s ease;
 }
 
 #rl-index-btn:hover {
-  background: #2ea043;
+  background: linear-gradient(180deg, #3fb950 0%, #2ea043 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(35, 134, 54, 0.4);
 }
 
 #rl-index-btn:disabled {
   background: var(--bg-surface);
   color: var(--text-muted);
   border-color: var(--border);
+  box-shadow: none;
+  transform: none;
   cursor: not-allowed;
 }
 
 /* Arrow at right of button */
 .rl-btn-arrow {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1;
   flex-shrink: 0;
 }
@@ -915,4 +1097,33 @@
 
 .rl-rate-limit-banner a:hover {
   color: var(--accent-hover);
+}
+
+/* ----------------------------------------------------------------
+   CUSTOM RESIZERS
+   ---------------------------------------------------------------- */
+.rl-resizer {
+  position: absolute;
+  z-index: 9999999;
+}
+.rl-resizer-left {
+  top: 0;
+  left: -5px;
+  bottom: 0;
+  width: 10px;
+  cursor: ew-resize;
+}
+.rl-resizer-bottom {
+  bottom: -5px;
+  left: 0;
+  right: 0;
+  height: 10px;
+  cursor: ns-resize;
+}
+.rl-resizer-corner {
+  bottom: -5px;
+  left: -5px;
+  width: 15px;
+  height: 15px;
+  cursor: nesw-resize;
 }
