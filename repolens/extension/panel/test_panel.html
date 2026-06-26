@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>RepoLens Visual Test</title>
+  <link rel="stylesheet" href="panel.css">
+  <!-- Load marked & highlight.js -->
+  <script src="../lib/marked.min.js"></script>
+  <script src="../lib/highlight.min.js"></script>
+  <style>
+    body {
+      background: #0d1117;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #rl-panel-container {
+      position: relative !important;
+      top: 0 !important;
+      right: 0 !important;
+      transform: none !important;
+      pointer-events: auto !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="rl-panel-container" class="open" data-repo-url="https://github.com/Swapnil-Ghosh06/REPO-LENS">
+    <!-- panel.html content will be loaded here -->
+  </div>
+
+  <script>
+    // Mock chrome extension environment
+    window.chrome = {
+      runtime: {
+        sendMessage: (msg, callback) => {
+          console.log("Mock sendMessage:", msg);
+          if (msg.type === "GET_REPO_STATUS") {
+            callback({ status: "done", indexed_at: Date.now() / 1000 });
+          } else if (msg.type === "GET_CHAT_HISTORY") {
+            callback([
+              { role: "user", content: "heplful" },
+              { role: "assistant", content: "Did you mean **helpful**? Yes, this extension is designed to help developers browse codebases faster." },
+              { role: "user", content: "Explain the architecture of RepoLens" },
+              { role: "assistant", content: "### Architecture Overview\n\nThe repository consists of two main components:\n1. **Backend**: FastAPI server that handles indexing, embeddings, and querying.\n2. **Extension**: Chrome extension (MV3) that injects the chat panel into GitHub pages.", sources: [{ relative_path: "repolens/backend/main.py", line: 10 }, { relative_path: "repolens/extension/manifest.json", line: 1 }] }
+            ]);
+          } else {
+            callback(null);
+          }
+        }
+      }
+    };
+
+    // Load panel.html
+    fetch("panel.html")
+      .then(r => r.text())
+      .then(html => {
+        // Strip script tags
+        const cleanHtml = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
+        const container = document.getElementById("rl-panel-container");
+        container.innerHTML = cleanHtml;
+        
+        // Inject panel.js
+        const script = document.createElement("script");
+        script.src = "panel.js";
+        script.onload = () => {
+          window.dispatchEvent(new CustomEvent("rl:mount-panel"));
+        };
+        document.body.appendChild(script);
+      });
+  </script>
+</body>
+</html>

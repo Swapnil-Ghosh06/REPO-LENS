@@ -251,16 +251,20 @@ function startPolling(job_id) {
 
       if (job.status === "done") {
         clearInterval(pollInterval);
-        chrome.runtime.sendMessage({
-          type:     "SET_REPO_STATUS",
-          repo_url: repoUrl,
-          data: {
-            indexed_at: Date.now() / 1000,
-            job_id:     currentJobId,
-            file_count: job.total_files,
-            status:     "done",
-          },
-        });
+        try {
+          chrome.runtime.sendMessage({
+            type:     "SET_REPO_STATUS",
+            repo_url: repoUrl,
+            data: {
+              indexed_at: Date.now() / 1000,
+              job_id:     currentJobId,
+              file_count: job.total_files,
+              status:     "done",
+            },
+          });
+        } catch (err) {
+          console.warn("Could not save status to extension storage:", err);
+        }
         showState("READY");
         updateStatusDot("ready");
         showEmptyHint(); // fresh index, chat history is empty
@@ -441,18 +445,18 @@ function showEmptyHint() {
 
   hintDiv.innerHTML = `
     <strong>Repository Indexing Complete!</strong>
-    <p>RepoLens has successfully scanned this repository and created text embeddings of the files. The AI is now fully initialized and ready for your commands.</p>
-    <div style="padding: 12px; background: var(--bg-primary); border-radius: 8px; border: 1px solid var(--border-muted);">
-      <p style="color: var(--text-primary); font-weight: 600; margin-bottom: 6px;">What to do next:</p>
-      <p style="font-size: 13px; line-height: 1.5;">Start typing in the input bar below. You can ask anything about the codebase. The AI will retrieve the most relevant files and answer your questions with precise citations.</p>
+    <p>A README tells you what a project does. RepoLens tells you <strong>how</strong> it does it, specific to your exact task.</p>
+    <div style="padding: 12px; background: var(--bg-surface); border-radius: 8px; border: 1px solid var(--border-muted);">
+      <p style="color: var(--accent); font-weight: 700; margin-bottom: 6px;">What to do next:</p>
+      <p style="font-size: 14px; line-height: 1.5; color: var(--text-primary);">Start typing in the input bar below. Ask anything about the codebase. The AI will retrieve the most relevant logic and give you actionable answers.</p>
     </div>
-    <p style="margin-top: 4px; font-weight: 600; color: var(--text-primary);">Try asking questions like:</p>
-    <ul>
-      <li>"Where is the main entry point of the application?"</li>
-      <li>"How is authentication handled in this codebase?"</li>
-      <li>"Explain the directory structure and main modules."</li>
+    <p style="margin-top: 8px; font-weight: 700; color: var(--text-primary);">Try asking questions like:</p>
+    <ul class="rl-help-list">
+      <li><span class="rl-check">✓</span> "Where is the main entry point of the application?"</li>
+      <li><span class="rl-check">✓</span> "How is authentication handled in this codebase?"</li>
+      <li><span class="rl-check">✓</span> "Explain the directory structure and main modules."</li>
     </ul>
-    <p style="margin-top: 4px;">Or click the <strong>Map</strong> button below to generate a plain-English architecture overview of the entire repository.</p>
+    <p style="margin-top: 8px; font-size: 14px;">Or click the <strong>Map</strong> button below to generate a plain-English architecture overview of the entire repository.</p>
   `;
   messages.appendChild(hintDiv);
 }
@@ -513,6 +517,9 @@ async function sendQuestion(question) {
 
   if (sendBtn) sendBtn.disabled = true;
   if (input)   input.disabled  = true;
+
+  // Hide autocomplete dropdown on send
+  document.getElementById("rl-autocomplete")?.classList.add("rl-autocomplete-hidden");
 
   // Clear any existing rate limit banner
   const existingBanner = document.querySelector(".rl-rate-limit-banner");
@@ -881,6 +888,7 @@ function bindListeners() {
     const q     = input?.value.trim();
     if (!q) return;
     input.value = "";
+    document.getElementById("rl-autocomplete")?.classList.add("rl-autocomplete-hidden");
     sendQuestion(q);
   });
 
@@ -893,6 +901,7 @@ function bindListeners() {
       if (!q) return;
       input.value = "";
       input.style.height = "";
+      document.getElementById("rl-autocomplete")?.classList.add("rl-autocomplete-hidden");
       sendQuestion(q);
     }
   });
@@ -947,6 +956,216 @@ function bindListeners() {
   setupResizer("rl-resizer-left", "left");
   setupResizer("rl-resizer-bottom", "bottom");
   setupResizer("rl-resizer-corner", "corner");
+
+  // Autocomplete bindings
+  const inputEl = document.getElementById("rl-input");
+  inputEl?.addEventListener("input", updateAutocomplete);
+  inputEl?.addEventListener("focus", updateAutocomplete);
+
+  // Click outside listener (only bind once)
+  document.addEventListener("click", (e) => {
+    const container = document.getElementById("rl-autocomplete");
+    const input = document.getElementById("rl-input");
+    if (container && !container.contains(e.target) && e.target !== input) {
+      container.classList.add("rl-autocomplete-hidden");
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUTOCOMPLETE & WORD PREDICTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CURIOUS_QUESTIONS = [
+  "Why is this project helpful?",
+  "What makes this project different?",
+  "What is the developer trying to achieve?",
+  "Is there any other project in the market like this?",
+  "Who is the strongest competitor for this project?",
+  "What is the core technology stack used here?",
+  "How does the main entry point or routing work?",
+  "Are there any known issues or limitations?",
+  "How do I get started with installing and running it?",
+  "What is the project's folder structure?",
+  "How is error handling and logging done?",
+  "What are the configuration parameters in this project?"
+];
+
+const TYPO_MAP = {
+  "hepl": "helpful",
+  "heplful": "helpful",
+  "hlp": "helpful",
+  "hlpful": "helpful",
+  "dif": "different",
+  "diferent": "different",
+  "diffrent": "different",
+  "achiv": "achieve",
+  "acheve": "achieve",
+  "achieve": "achieve",
+  "comp": "competitor",
+  "compettr": "competitor",
+  "competiter": "competitor",
+  "mrket": "market",
+  "arch": "architecture",
+  "architecure": "architecture",
+  "archtecture": "architecture",
+  "tech": "technology",
+  "technolgy": "technology",
+  "db": "database",
+  "datbase": "database",
+  "auth": "authentication",
+  "authentcation": "authentication",
+  "install": "installation",
+  "instalation": "installation",
+  "config": "configuration",
+  "configration": "configuration",
+  "perf": "performance",
+  "performence": "performance",
+  "deploy": "deployment",
+  "deploment": "deployment",
+  "struct": "structure",
+  "stucture": "structure",
+  "feat": "features",
+  "featur": "features",
+  "dev": "developer",
+  "developper": "developer",
+  "proj": "project",
+  "progect": "project",
+  "code": "codebase",
+  "codbase": "codebase",
+  "repo": "repository",
+  "repositry": "repository"
+};
+
+function updateAutocomplete() {
+  const input = document.getElementById("rl-input");
+  const container = document.getElementById("rl-autocomplete");
+  const predictionsDiv = document.getElementById("rl-autocomplete-predictions");
+  const questionsDiv = document.getElementById("rl-autocomplete-questions");
+  
+  if (!input || !container || !predictionsDiv || !questionsDiv) return;
+
+  const text = input.value;
+  const trimmed = text.trim();
+
+  // If input is empty, show all curious questions as starting suggestions, but no word predictions!
+  if (!trimmed) {
+    predictionsDiv.innerHTML = "";
+    predictionsDiv.style.display = "none";
+    
+    questionsDiv.innerHTML = "";
+    CURIOUS_QUESTIONS.forEach(q => {
+      const btn = document.createElement("button");
+      btn.className = "rl-question-item";
+      btn.textContent = q;
+      btn.addEventListener("click", () => {
+        input.value = q;
+        container.classList.add("rl-autocomplete-hidden");
+        input.focus();
+        // Adjust height
+        input.style.height = "";
+        input.style.height = Math.min(input.scrollHeight, 100) + "px";
+      });
+      questionsDiv.appendChild(btn);
+    });
+    
+    container.classList.remove("rl-autocomplete-hidden");
+    return;
+  }
+
+  // 1. Word Predictions & Typo Fixing
+  // Find the last word the user is currently typing
+  const words = text.split(/\s+/);
+  const lastWordRaw = words[words.length - 1] || "";
+  const lastWord = lastWordRaw.toLowerCase().replace(/[^a-z]/g, "");
+
+  let predictions = [];
+
+  if (lastWord.length >= 2) {
+    // Check if it matches a typo key
+    if (TYPO_MAP[lastWord]) {
+      predictions.push(TYPO_MAP[lastWord]);
+    }
+    // Check prefix match in our vocabulary
+    const vocabulary = Object.values(TYPO_MAP);
+    for (const vocabWord of vocabulary) {
+      if (vocabWord.startsWith(lastWord) && vocabWord !== lastWord && !predictions.includes(vocabWord)) {
+        predictions.push(vocabWord);
+      }
+    }
+  }
+
+  // Populate prediction pills
+  predictionsDiv.innerHTML = "";
+  if (predictions.length > 0) {
+    predictionsDiv.style.display = "flex";
+    predictions.slice(0, 3).forEach(pred => {
+      const pill = document.createElement("button");
+      pill.className = "rl-pred-pill";
+      pill.textContent = pred;
+      pill.addEventListener("click", () => {
+        // Replace the last word with the predicted word
+        words[words.length - 1] = pred;
+        input.value = words.join(" ") + " ";
+        container.classList.add("rl-autocomplete-hidden");
+        input.focus();
+        updateAutocomplete(); // Recalculate
+      });
+      predictionsDiv.appendChild(pill);
+    });
+  } else {
+    predictionsDiv.style.display = "none";
+  }
+
+  // 2. Matching Curious Questions
+  // Filter questions that contain the words typed so far (case-insensitive)
+  const queryTerms = trimmed.toLowerCase().split(/\s+/).filter(t => t.length > 1);
+  let matchingQuestions = [];
+  
+  if (queryTerms.length === 0) {
+    matchingQuestions = CURIOUS_QUESTIONS;
+  } else {
+    matchingQuestions = CURIOUS_QUESTIONS.filter(q => {
+      const qLower = q.toLowerCase();
+      // Match if all terms are contained in the question
+      return queryTerms.every(term => qLower.includes(term));
+    });
+  }
+
+  questionsDiv.innerHTML = "";
+  if (matchingQuestions.length > 0) {
+    matchingQuestions.slice(0, 5).forEach(q => {
+      const btn = document.createElement("button");
+      btn.className = "rl-question-item";
+      btn.textContent = q;
+      btn.addEventListener("click", () => {
+        input.value = q;
+        container.classList.add("rl-autocomplete-hidden");
+        input.focus();
+        // Adjust height
+        input.style.height = "";
+        input.style.height = Math.min(input.scrollHeight, 100) + "px";
+      });
+      questionsDiv.appendChild(btn);
+    });
+  } else {
+    // If no exact match from curious questions, just show a subset of default questions
+    CURIOUS_QUESTIONS.slice(0, 3).forEach(q => {
+      const btn = document.createElement("button");
+      btn.className = "rl-question-item";
+      btn.textContent = q;
+      btn.addEventListener("click", () => {
+        input.value = q;
+        container.classList.add("rl-autocomplete-hidden");
+        input.focus();
+        input.style.height = "";
+        input.style.height = Math.min(input.scrollHeight, 100) + "px";
+      });
+      questionsDiv.appendChild(btn);
+    });
+  }
+
+  container.classList.remove("rl-autocomplete-hidden");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

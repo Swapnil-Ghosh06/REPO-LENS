@@ -14,6 +14,9 @@ import json
 from google import genai
 from google.genai import types
 
+# Global circuit breaker for Gemini limits (1 hour)
+_GEMINI_DEAD_UNTIL = 0
+
 def build_context_string(chunk: dict, repo_name: str) -> str:
     """Build the context string prefixed to the code chunk before embedding."""
     header = (
@@ -133,7 +136,7 @@ def _embed_chunks_gemini(chunks: list[dict], repo_name: str, progress_callback) 
         
         # Retry loop for Rate Limits specifically
         retry_count = 0
-        while retry_count < 3:
+        while retry_count < 2:
             try:
                 embedded_batch = _execute_gemini_batch_with_divide_and_conquer(client, batch)
                 embedded_chunks.extend(embedded_batch)
@@ -141,9 +144,9 @@ def _embed_chunks_gemini(chunks: list[dict], repo_name: str, progress_callback) 
             except RuntimeError as e:
                 if "GEMINI_RATE_LIMIT" in str(e):
                     retry_count += 1
-                    if retry_count < 3:
+                    if retry_count < 2:
                         backoff = 15 * retry_count
-                        print(f"[RATE LIMIT] Gemini exhausted. Backing off for {backoff}s (Retry {retry_count}/3)...")
+                        print(f"[RATE LIMIT] Gemini exhausted. Backing off for {backoff}s (Retry {retry_count}/2)...")
                         time.sleep(backoff)
                     else:
                         raise RuntimeError("GEMINI_EXHAUSTED_FATAL")
@@ -212,6 +215,11 @@ def _embed_chunks_cohere(chunks: list[dict], repo_name: str, progress_callback) 
 
 def embed_chunks(chunks: list[dict], repo_name: str, progress_callback=None, job_id: str = None) -> list[dict]:
     """Main entrypoint. Tries Gemini, falls back to Cohere if completely exhausted."""
+    global _GEMINI_DEAD_UNTIL
+    
+    if time.time() < _GEMINI_DEAD_UNTIL:
+        print("[CIRCUIT BREAKER] Gemini is in cool-down. Going straight to Cohere Plan B...")
+        return _embed_chunks_cohere(chunks, repo_name, progress_callback)
     
     try:
         embedded = _embed_chunks_gemini(chunks, repo_name, progress_callback)
@@ -222,6 +230,7 @@ def embed_chunks(chunks: list[dict], repo_name: str, progress_callback=None, job
         err_str = str(e).upper()
         if "GEMINI_EXHAUSTED_FATAL" in err_str:
             print("[PLAN B] Gemini is completely exhausted. Switching to Cohere Plan B Engine...")
+            _GEMINI_DEAD_UNTIL = time.time() + 3600  # Kill Gemini for 1 hour
             embedded = _embed_chunks_cohere(chunks, repo_name, progress_callback)
         else:
             raise e

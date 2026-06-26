@@ -46,16 +46,16 @@
     </div>
     <div class="rl-help-content">
       <h2>Why RepoLens?</h2>
-      <p>RepoLens is your personal AI companion for exploring codebases. We built this simple, free-to-use extension to save you countless hours of reading through undocumented code. What makes RepoLens different? It turns difficult repositories into interactive conversations, helping you instantly understand complex architectures, locate key logic, and make your work significantly easier—all without ever leaving GitHub.</p>
+      <p>A README tells you what a project does. RepoLens tells you <strong>how</strong> it does it, specific to your exact task. Skip the endless documentation hunt and instantly interrogate the architecture, locate key logic, and get actionable answers. It turns static code into a dynamic, interactive conversation.</p>
 
       <h2>Getting Started</h2>
-      <p>To use RepoLens, make sure your local RepoLens backend application is running. Once the server is active, just click the <strong>Index Repository</strong> button. RepoLens will read the code, break it down intelligently, and store it so you can start asking questions. This only takes a minute or two and only needs to happen once per repository.</p>
+      <p>Make sure your local RepoLens backend is running, then click the <strong>Index Repository</strong> button. We'll read the code, embed it intelligently, and get ready for your questions. This only takes a minute and only happens once per repo!</p>
 
       <h2>Good Questions to Ask</h2>
       <ul class="rl-help-list">
         <li><span class="rl-check">✓</span> "How does authentication work in this repo?"</li>
-        <li><span class="rl-check">✓</span> "Find all database queries"</li>
-        <li><span class="rl-check">✓</span> "Explain the main entry point"</li>
+        <li><span class="rl-check">✓</span> "Find all database queries and explain them"</li>
+        <li><span class="rl-check">✓</span> "Explain the main entry point of the app"</li>
         <li><span class="rl-check">✓</span> "What does the UserService class do?"</li>
         <li><span class="rl-check">✓</span> "How is error handling implemented?"</li>
       </ul>
@@ -152,7 +152,13 @@
        INPUT BAR — only visible when state-ready is active
        Controlled via CSS: #state-ready.active ~ #rl-input-bar { display: flex; }
        ============================================================ -->
-  <div id="rl-input-bar" role="search">
+  <div id="rl-input-bar" role="search" style="position: relative;">
+    <!-- Floating autocomplete dropdown -->
+    <div id="rl-autocomplete" class="rl-autocomplete-hidden">
+      <div id="rl-autocomplete-predictions" class="rl-predictions-row"></div>
+      <div id="rl-autocomplete-questions" class="rl-questions-list"></div>
+    </div>
+
     <textarea
       id="rl-input"
       placeholder="Ask about this codebase..."

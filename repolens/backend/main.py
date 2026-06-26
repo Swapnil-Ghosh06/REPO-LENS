@@ -237,7 +237,8 @@ def run_index_job(job_id: str) -> None:
     except ValueError as ve:
         job["status"] = "error"
         job["error"] = str(ve)
-        job["error_type"] = "too_large"
+        if "500 files" in str(ve):
+            job["error_type"] = "too_large"
         persist_job(job_id)
     except Exception as exc:
         job["status"] = "error"
