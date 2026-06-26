@@ -30,9 +30,11 @@ from vectorstore import query_chunks, get_provider
 
 load_dotenv()
 
-# ── Groq client (initialised once at import time, None if key missing) ────────
-_groq_key = os.getenv("GROQ_API_KEY")
-_groq_client: Groq | None = Groq(api_key=_groq_key) if _groq_key else None
+# ── Groq clients (initialised once at import time) ────────────────────────────
+_groq_clients = []
+for k, v in os.environ.items():
+    if k.startswith("GROQ_API_KEY") and v.strip():
+        _groq_clients.append(Groq(api_key=v.strip()))
 
 # ── Shared system prompt builder ──────────────────────────────────────────────
 
@@ -92,24 +94,51 @@ def _stream_gemini(system_prompt: str, user_message: str) -> Generator[str, None
 # ── Provider: Groq ────────────────────────────────────────────────────────────
 
 def _stream_groq(system_prompt: str, user_message: str) -> Generator[str, None, None]:
-    """Yields SSE token events using Groq Llama-3.3-70B. Raises if key missing."""
-    if _groq_client is None:
+    """Yields SSE token events using Groq. Falls back across multiple keys if rate limited."""
+    if not _groq_clients:
         raise RuntimeError("Groq API key not configured.")
 
-    stream = _groq_client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": user_message},
-        ],
-        stream=True,
-        temperature=0.2,
-        max_tokens=4096,
-    )
-    for chunk in stream:
-        text = chunk.choices[0].delta.content or ""
-        if text:
-            yield f"event: token\ndata: {json.dumps({'text': text})}\n\n"
+    for i, client in enumerate(_groq_clients):
+        try:
+            stream = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": user_message},
+                ],
+                stream=True,
+                temperature=0.2,
+                max_tokens=4096,
+            )
+            
+            chunk_iterator = iter(stream)
+            try:
+                first_chunk = next(chunk_iterator)
+            except StopIteration:
+                return # Empty response
+                
+            # If we successfully get the first chunk, this key works!
+            text = first_chunk.choices[0].delta.content or ""
+            if text:
+                yield f"event: token\ndata: {json.dumps({'text': text})}\n\n"
+                
+            for chunk in chunk_iterator:
+                text = chunk.choices[0].delta.content or ""
+                if text:
+                    yield f"event: token\ndata: {json.dumps({'text': text})}\n\n"
+                    
+            # Successfully finished stream, exit so we don't use the next key
+            return
+            
+        except Exception as e:
+            err_str = str(e).upper()
+            if "429" in err_str or "RATE_LIMIT" in err_str:
+                print(f"[Fallback] Groq key {i+1} rate limited. Trying next key...")
+                continue
+            raise # Re-raise non-rate-limit errors
+            
+    # If we exhausted the loop, all keys failed
+    raise RuntimeError("429: All Groq API keys are currently rate limited.")
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -176,7 +205,7 @@ def stream_answer(
             err_str = str(gemini_exc).upper()
             if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
                 gemini_rate_limited = True
-                if _groq_client is not None:
+                if _groq_clients:
                     # Silently switch to Groq — user sees no interruption
                     used_fallback = True
                     yield from _stream_groq(system_prompt, user_message)
