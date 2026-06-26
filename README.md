@@ -22,7 +22,7 @@ Cursor and Copilot do this inside an IDE. Nobody does it cleanly **inside GitHub
 
 No more cloning massive repositories just to figure out how they work. No more `grep`-ing through thousands of files to trace a single function call.
 
-### 🆚 RepoLens vs. GitHub Copilot (The Ecosystem)
+### 🆚 RepoLens vs. GitHub Copilot (The Ecosystem) :
 
 While GitHub Copilot is an incredible **AI Pair Programmer** designed for writing code in your IDE, **RepoLens** is a **GitHub Explorer with AI Chat** designed for *understanding* code right in your browser. They complement each other perfectly:
 
