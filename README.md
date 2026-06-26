@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="extension/icons/icon128.png" alt="RepoLens Logo" width="120" />
+  <img src="repolens/extension/icons/icon128.png" alt="RepoLens Logo" width="120" />
 
   # 🔍 RepoLens
 
@@ -21,6 +21,15 @@
 Cursor and Copilot do this inside an IDE. Nobody does it cleanly **inside GitHub itself** — where developers already spend enormous time reviewing PRs, reading issues, and exploring unfamiliar repos. **RepoLens lives where the code already is.**
 
 No more cloning massive repositories just to figure out how they work. No more `grep`-ing through thousands of files to trace a single function call.
+
+### 🆚 RepoLens vs. GitHub Copilot (The Ecosystem)
+
+While GitHub Copilot is an incredible **AI Pair Programmer** designed for writing code in your IDE, **RepoLens** is a **GitHub Explorer with AI Chat** designed for *understanding* code right in your browser. They complement each other perfectly:
+
+- **Different Tools for Different Jobs**: Copilot generates and refactors code locally. RepoLens helps you explore, onboard, and understand unfamiliar open-source projects without leaving the GitHub web UI.
+- **The "Free Tier" Advantage**: RepoLens brings powerful, repo-level RAG directly to GitHub for free (using your own API key). You don't need a premium Enterprise subscription just to ask questions about a repository online.
+- **Frictionless Experience**: No cloning, no opening an IDE, and no switching tabs to ChatGPT or Claude. You stay right where the code is.
+- **Privacy First**: The vector database runs 100% locally on your machine. You control your data.
 
 ---
 
