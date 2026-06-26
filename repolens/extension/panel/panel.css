@@ -751,39 +751,47 @@
 }
 
 /* ----------------------------------------------------------------
-   STATE: INDEXING — 4px progress bar, blinking cursor, counter
+   STATE: INDEXING — redesigned for premium feel
    ---------------------------------------------------------------- */
 #state-indexing {
-  padding: 20px 16px;
-  gap: 10px;
-  flex: 0 0 auto;
+  padding: 40px 24px;
+  flex: 1;
+  /* display: flex handled by .rl-state.active */
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  gap: 16px;
 }
 
 #rl-indexing-label {
   all: unset;
   display: block;
   font-family: var(--font-ui);
-  font-size: 12px;
-  color: var(--text-secondary);
-  letter-spacing: 0.01em;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+  margin-bottom: 8px;
 }
 
-/* Progress track — 4px height, no border-radius */
+/* Progress track — 8px height, rounded */
 #rl-progress-track {
-  height: 4px;
-  background: var(--border);
+  height: 8px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 4px;
   overflow: hidden;
-  border-radius: 0; /* intentionally square */
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
 }
 
-/* Progress fill — solid accent, no border-radius */
+/* Progress fill — solid accent, rounded */
 #rl-progress-fill {
   height: 100%;
   width: 0%;
   background: var(--accent);
-  border-radius: 0;
-  /* APPROVED animation: progress bar width */
+  border-radius: 3px;
   transition: width 0.3s ease-out;
+  box-shadow: 0 0 10px rgba(88, 166, 255, 0.4);
 }
 
 /* Stats row — files count left, percentage right */
@@ -791,63 +799,67 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0 4px;
 }
 
-#rl-files-count {
+#rl-files-count, #rl-progress-pct {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--text-secondary);
 }
 
-#rl-progress-pct {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-primary);
+/* Terminal block for current file and meta */
+.rl-indexing-terminal {
+  margin-top: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-muted);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-/* Current file ticker with blinking cursor appended via ::after */
 #rl-current-file {
   all: unset;
   display: block;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  /* Reverse text direction so ellipsis appears at the start */
-  direction: rtl;
-  text-align: left;
+  direction: rtl; /* ellipsis on left */
+  text-align: right; /* text anchors right for RTL */
   max-width: 100%;
 }
 
-/* Blinking cursor appended after the current filename (APPROVED animation) */
 #rl-current-file::after {
   content: '▋';
-  display: inline;
+  display: inline-block;
   color: var(--accent);
   animation: blink 0.8s step-end infinite;
-  font-size: 10px;
-  margin-left: 1px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.rl-indexing-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px dashed var(--border-muted);
+  padding-top: 8px;
 }
 
 /* Secondary "files embedded" counter */
-.rl-embedded-label {
+.rl-embedded-label, #rl-elapsed {
   all: unset;
   display: block;
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--text-muted);
   letter-spacing: 0.01em;
-}
-
-#rl-elapsed {
-  all: unset;
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-muted);
 }
 
 /* ----------------------------------------------------------------

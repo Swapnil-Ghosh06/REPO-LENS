@@ -130,11 +130,15 @@
       <span id="rl-files-count">0 / ? files</span>
       <span id="rl-progress-pct">0%</span>
     </div>
-    <!-- Current file with blinking cursor appended via CSS/JS -->
-    <p id="rl-current-file">↳ </p>
-    <!-- Secondary embedded counter -->
-    <p id="rl-embedded-count" class="rl-embedded-label">0 files embedded</p>
-    <p id="rl-elapsed">0:00</p>
+    <div class="rl-indexing-terminal">
+      <!-- Current file with blinking cursor appended via CSS/JS -->
+      <p id="rl-current-file">↳ </p>
+      <div class="rl-indexing-meta">
+        <!-- Secondary embedded counter -->
+        <p id="rl-embedded-count" class="rl-embedded-label">0 files embedded</p>
+        <p id="rl-elapsed">0:00</p>
+      </div>
+    </div>
   </div>
 
   <!-- STATE: READY (chat interface) -->
