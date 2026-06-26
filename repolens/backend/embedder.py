@@ -74,9 +74,9 @@ def embed_chunks(chunks: list[dict], repo_name: str, progress_callback=None, job
         retry_count = 0
         batch_success = False
 
-        while retry_count < 5:
+        while retry_count <= 3:
             if retry_count > 0:
-                print(f"Embedding batch {batch_index + 1}/{total_batches} (Retry {retry_count}/5)...")
+                print(f"Embedding batch {batch_index + 1}/{total_batches} (Retry {retry_count}/3)...")
             else:
                 print(f"Embedding batch {batch_index + 1}/{total_batches}...")
 
@@ -101,20 +101,21 @@ def embed_chunks(chunks: list[dict], repo_name: str, progress_callback=None, job
             except Exception as exc:
                 err_str = str(exc).upper()
                 if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "QUOTA" in err_str:
-                    retry_count += 1
-                    if retry_count < 5:
-                        delay = min(2 ** retry_count, 60)
-                        print(f"[WARNING] Rate limit hit. Backing off for {delay} seconds...")
-                        time.sleep(delay)
+                    if retry_count < 3:
+                        retry_count += 1
+                        print(f"[RATE LIMIT] Waiting 60s before retry {retry_count}/3...")
+                        time.sleep(60)
                     else:
-                        print(f"[WARNING] Batch {batch_index + 1} failed after 5 retries due to rate limits. Skipping.")
+                        print(f"[WARNING] Batch {batch_index + 1} failed after 3 retries due to rate limits. Skipping.")
+                        retry_count = 4
+                        break
                 else:
                     # Fall back to single embedding calls if the batch fails with non-429
                     print(f"[WARNING] Batch {batch_index + 1} embedding failed: {exc}. Retrying items individually...")
                     break
         
         # If batch failed with non-429, try individually
-        if not batch_success and retry_count < 5:
+        if not batch_success and retry_count < 3:
             for i, chunk in enumerate(batch):
                 ctx_str = batch_contexts[i]
                 item_retry = 0

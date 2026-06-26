@@ -38,8 +38,8 @@
   --user-border: #30478c;
 
   /* Typography */
-  --font-ui:   'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --font-ui:   -apple-system, BlinkMacSystemFont, "Segoe UI", HTML5-Segoe-UI, Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 /* ----------------------------------------------------------------
@@ -108,15 +108,15 @@
    ---------------------------------------------------------------- */
 #rl-panel-container {
   position: fixed;
-  top: 0;
-  right: 0;
+  top: 20px;
+  right: 20px;
   width: 380px;
-  height: 100vh;
+  height: calc(100vh - 40px);
   z-index: 999999;
 
-  /* Slide animation — panel starts off-screen right */
-  transform: translateX(100%);
-  transition: transform 0.2s ease-out;
+  /* Slide animation — panel starts off-screen right with safety margin */
+  transform: translateX(calc(100% + 40px));
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 
   /* No visual styling here — that's on #rl-container */
   pointer-events: none;
@@ -140,9 +140,11 @@
   width: 100%;
   height: 100%;
 
-  /* Visual — no rounded corners on the outer panel */
+  /* Visual — floating box with soft rounded corners and premium drop shadow */
   background: var(--bg-primary);
-  border-left: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 1px 4px rgba(0, 0, 0, 0.3);
 
   /* Flex column — header | content | input bar */
   display: flex;
@@ -154,6 +156,7 @@
   color: var(--text-primary);
   line-height: 1.5;
   box-sizing: border-box;
+  overflow: hidden; /* clip child elements to the rounded border-radius */
 }
 
 /* Ensure all children inherit box-sizing from the container */
@@ -268,10 +271,10 @@
 }
 
 /* ----------------------------------------------------------------
-   STATE: OFFLINE
+   STATE: OFFLINE — terminal-style code block
    ---------------------------------------------------------------- */
 #state-offline {
-  padding: 20px 16px;
+  padding: 24px 16px;
   gap: 12px;
   flex: 0 0 auto;
 }
@@ -300,14 +303,24 @@
   line-height: 1.5;
 }
 
+/* Terminal block — dark bg, monospace, relative for copy button */
 #rl-offline-code-block {
+  position: relative;
   background: var(--code-bg);
   border: 1px solid var(--border);
-  padding: 10px 14px;
+  padding: 10px 40px 10px 14px; /* right padding for copy icon */
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
+}
+
+/* "$ " prompt in muted color — visual terminal prefix */
+.rl-term-prefix {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  user-select: none;
 }
 
 #rl-offline-cmd {
@@ -315,42 +328,65 @@
   font-size: 11px;
   color: var(--text-primary);
   display: block;
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* Copy icon button — absolute top-right inside the code block */
 #rl-copy-cmd {
   all: unset;
-  font-family: var(--font-ui);
-  font-size: 11px;
-  color: var(--accent);
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
   cursor: pointer;
-  white-space: nowrap;
+  border-radius: 3px;
   flex-shrink: 0;
 }
 
 #rl-copy-cmd:hover {
-  color: var(--accent-hover);
+  color: var(--accent);
+  background: var(--bg-hover);
 }
 
 /* ----------------------------------------------------------------
-   STATE: NOT INDEXED
+   STATE: NOT INDEXED — ASCII art icon + full-width button
    ---------------------------------------------------------------- */
 #state-not-indexed {
   padding: 20px 16px;
-  gap: 12px;
+  gap: 10px;
   flex: 0 0 auto;
 }
 
+/* Subtle monospace ASCII art icon block */
+.rl-ascii-icon {
+  all: unset;
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  white-space: pre;
+  letter-spacing: 0;
+  margin-bottom: 2px;
+}
+
+/* Repo name: accent color, monospace */
 #rl-repo-display {
   all: unset;
   display: block;
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--accent);
 }
 
 #rl-not-indexed-desc {
@@ -370,30 +406,32 @@
   color: var(--text-muted);
 }
 
-/* Divider before the button */
-#state-not-indexed::before {
-  content: '';
-  display: block;
+/* Subtle divider before button */
+.rl-divider {
   height: 1px;
   background: var(--border-muted);
-  margin: 4px 0;
+  margin: 2px 0 4px;
+  flex-shrink: 0;
 }
 
+/* Full-width index button with → arrow */
 #rl-index-btn {
   all: unset;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   width: 100%;
-  height: 32px;
+  height: 34px;
+  padding: 0 14px;
   background: #238636;
   border: 1px solid rgba(240, 246, 252, 0.1);
   color: #ffffff;
   font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 500;
-  text-align: center;
   cursor: pointer;
-  line-height: 32px;
-  border-radius: 6px;
+  line-height: 34px;
+  border-radius: 4px;
 }
 
 #rl-index-btn:hover {
@@ -407,8 +445,15 @@
   cursor: not-allowed;
 }
 
+/* Arrow at right of button */
+.rl-btn-arrow {
+  font-size: 15px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 /* ----------------------------------------------------------------
-   STATE: INDEXING
+   STATE: INDEXING — 4px progress bar, blinking cursor, counter
    ---------------------------------------------------------------- */
 #state-indexing {
   padding: 20px 16px;
@@ -425,18 +470,20 @@
   letter-spacing: 0.01em;
 }
 
-/* Progress track — 2px height per spec */
+/* Progress track — 4px height, no border-radius */
 #rl-progress-track {
-  height: 2px;
+  height: 4px;
   background: var(--border);
   overflow: hidden;
+  border-radius: 0; /* intentionally square */
 }
 
-/* Progress fill */
+/* Progress fill — solid accent, no border-radius */
 #rl-progress-fill {
   height: 100%;
   width: 0%;
   background: var(--accent);
+  border-radius: 0;
   /* APPROVED animation: progress bar width */
   transition: width 0.3s ease-out;
 }
@@ -461,8 +508,7 @@
   color: var(--text-primary);
 }
 
-/* Current file ticker — truncate at the START (show the filename, not the prefix) */
-/* Using direction: rtl + unicode-bidi trick for ltr content with start-ellipsis */
+/* Current file ticker with blinking cursor appended via ::after */
 #rl-current-file {
   all: unset;
   display: block;
@@ -476,6 +522,26 @@
   direction: rtl;
   text-align: left;
   max-width: 100%;
+}
+
+/* Blinking cursor appended after the current filename (APPROVED animation) */
+#rl-current-file::after {
+  content: '▋';
+  display: inline;
+  color: var(--accent);
+  animation: blink 0.8s step-end infinite;
+  font-size: 10px;
+  margin-left: 1px;
+}
+
+/* Secondary "files embedded" counter */
+.rl-embedded-label {
+  all: unset;
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
 }
 
 #rl-elapsed {
@@ -560,14 +626,12 @@
   animation: fadeIn 0.15s ease forwards;
 }
 
-/* User message bubble */
+/* User message — left border + bg, no bubble rounding */
 .rl-message-user {
-  margin: 6px 12px 6px auto;
-  max-width: 88%;
-  padding: 7px 11px;
+  margin: 0;
+  padding: 10px 14px 10px 12px;
   background: var(--user-bubble);
-  border: 1px solid var(--user-border);
-  border-radius: 8px 8px 2px 8px;
+  border-left: 2px solid #30478c;
   font-family: var(--font-ui);
   font-size: 13px;
   color: var(--text-primary);
@@ -575,16 +639,25 @@
   word-break: break-word;
 }
 
-/* Assistant message — no bubble, text flows directly */
+/* Assistant message — no background, clean text flow */
 .rl-message-assistant {
-  margin: 6px 12px;
-  max-width: 100%;
-  padding: 0;
+  margin: 0;
+  padding: 10px 14px;
   font-family: var(--font-ui);
   font-size: 13px;
   color: var(--text-primary);
   line-height: 1.6;
   word-break: break-word;
+}
+
+/* Faint timestamp below each message */
+.rl-message-time {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  letter-spacing: 0.02em;
 }
 
 /* Headings inside assistant messages */
@@ -651,7 +724,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin: 4px 12px 10px;
+  margin: 4px 14px 10px;
 }
 
 /* "N sources" label before chips */
@@ -667,14 +740,14 @@
   flex-shrink: 0;
 }
 
-/* Citation chip — monospace, 11px, accent, file:line format */
+/* Citation chip — GitHub label style: border, no fill, accent text */
 .rl-citation-chip {
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 400;
   color: var(--accent);
-  background: rgba(88, 166, 255, 0.07);
-  border: 1px solid rgba(88, 166, 255, 0.18);
+  background: transparent;
+  border: 1px solid var(--border);
   border-radius: 3px;
   padding: 1px 6px;
   cursor: pointer;
@@ -684,8 +757,7 @@
 }
 
 .rl-citation-chip:hover {
-  background: rgba(88, 166, 255, 0.14);
-  border-color: rgba(88, 166, 255, 0.35);
+  border-color: var(--accent);
   color: var(--accent-hover);
 }
 
@@ -702,18 +774,42 @@
 
 /* Empty state inside messages (first-load hint) */
 .rl-empty-hint {
-  padding: 20px 16px;
-  font-family: var(--font-ui);
-  font-size: 12px;
-  color: var(--text-muted);
+  margin: 16px;
+  padding: 24px 20px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  font-family: 'Inter', var(--font-ui);
+  font-size: 13.5px;
+  color: var(--text-secondary);
   line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .rl-empty-hint strong {
   display: block;
-  color: var(--text-secondary);
-  font-size: 13px;
+  color: var(--text-primary);
+  font-size: 15.5px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.rl-empty-hint ul {
+  margin: 4px 0 8px 16px;
+  padding: 0;
+  list-style-type: disc;
+}
+
+.rl-empty-hint li {
   margin-bottom: 6px;
+  color: var(--text-secondary);
+}
+
+.rl-empty-hint li::marker {
+  color: var(--accent);
 }
 
 /* ----------------------------------------------------------------
@@ -744,7 +840,7 @@
   height: auto;
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 8px 10px;
   font-family: var(--font-ui);
   font-size: 13px;
@@ -764,13 +860,13 @@
   color: var(--text-muted);
 }
 
-/* Send button — 32×32, arrow only, no text */
+/* Send button — 32×32, → arrow icon, no bg until hover */
 #rl-send {
   all: unset;
   width: 32px;
   height: 32px;
   background: transparent;
-  color: var(--accent);
+  color: var(--text-muted);  /* muted until hover */
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -781,7 +877,7 @@
 }
 
 #rl-send:hover {
-  color: var(--accent-hover);
+  color: var(--accent);
   background: var(--bg-hover);
 }
 
@@ -794,7 +890,9 @@
   background: transparent;
 }
 
-/* Styled rate-limit warning banner */
+/* ----------------------------------------------------------------
+   Styled rate-limit warning banner
+   ---------------------------------------------------------------- */
 .rl-rate-limit-banner {
   background: rgba(210, 153, 34, 0.15);
   border-top: 1px solid var(--warning);

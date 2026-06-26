@@ -18,7 +18,7 @@
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BACKEND = "http://localhost:8000";
+const BACKEND = "http://127.0.0.1:8000";
 const INDEX_CACHE_TTL = 86400; // 24 hours in seconds
 
 /** @type {string} Populated on init from container dataset */
@@ -134,7 +134,58 @@ function startPolling(jobId) {
         `${BACKEND}/status/${jobId}`,
         { signal: AbortSignal.timeout(5000) }
       );
-      if (!r.ok) return; // transient — keep polling
+      if (!r.ok) {
+        if (r.status === 404) {
+          clearInterval(interval);
+          try {
+            const indexedResp = await fetch(
+              `${BACKEND}/indexed?repo_url=${encodeURIComponent(repoUrl)}`,
+              { signal: AbortSignal.timeout(5000) }
+            );
+            if (indexedResp.ok) {
+              const data = await indexedResp.json();
+              if (data.indexed) {
+                chrome.runtime.sendMessage({
+                  type:     "SET_REPO_STATUS",
+                  repo_url: repoUrl,
+                  data: {
+                    indexed_at: Date.now() / 1000,
+                    job_id:     jobId,
+                    status:     "done",
+                  },
+                });
+                showState("READY");
+                updateStatusDot("ready");
+              } else {
+                showState("NOT_INDEXED");
+                updateStatusDot("idle");
+                const descEl = document.getElementById("rl-not-indexed-desc");
+                if (descEl) {
+                  descEl.textContent = "Server was restarted. Please re-index.";
+                  descEl.style.color = "var(--error)";
+                }
+              }
+            } else {
+              showState("NOT_INDEXED");
+              updateStatusDot("idle");
+              const descEl = document.getElementById("rl-not-indexed-desc");
+              if (descEl) {
+                descEl.textContent = "Server was restarted. Please re-index.";
+                descEl.style.color = "var(--error)";
+              }
+            }
+          } catch {
+            showState("NOT_INDEXED");
+            updateStatusDot("idle");
+            const descEl = document.getElementById("rl-not-indexed-desc");
+            if (descEl) {
+              descEl.textContent = "Server was restarted. Please re-index.";
+              descEl.style.color = "var(--error)";
+            }
+          }
+        }
+        return;
+      }
 
       const job = await r.json();
 
@@ -150,6 +201,12 @@ function startPolling(jobId) {
       if (countEl) {
         countEl.textContent =
           `${job.files_processed ?? 0} / ${job.total_files ?? "?"} files`;
+      }
+
+      // Secondary embedded counter
+      const embeddedEl = document.getElementById("rl-embedded-count");
+      if (embeddedEl) {
+        embeddedEl.textContent = `${job.files_embedded ?? job.files_processed ?? 0} files embedded`;
       }
 
       // Current file ticker
@@ -182,7 +239,7 @@ function startPolling(jobId) {
         });
         showState("READY");
         updateStatusDot("ready");
-        // No loadChatHistory() — fresh index, chat history is empty
+        showEmptyHint(); // fresh index, chat history is empty
 
       } else if (job.status === "error") {
         clearInterval(interval);
@@ -237,6 +294,15 @@ function appendMessage(role, content, sources = []) {
       renderCitations(sources, div, messages);
     }
   }
+
+  // Faint timestamp below each message
+  const now = new Date();
+  const hh  = String(now.getHours()).padStart(2, "0");
+  const mm  = String(now.getMinutes()).padStart(2, "0");
+  const timeEl = document.createElement("span");
+  timeEl.className = "rl-message-time";
+  timeEl.textContent = `${hh}:${mm}`;
+  div.appendChild(timeEl);
 
   messages.appendChild(div);
   return div;
@@ -334,14 +400,48 @@ function renderCitations(sources, msgDiv, container) {
 // CHAT — STORAGE
 // ─────────────────────────────────────────────────────────────────────────────
 
+function showEmptyHint() {
+  const messages = document.getElementById("rl-messages");
+  if (!messages) return;
+
+  messages.innerHTML = "";
+
+  const hintDiv = document.createElement("div");
+  hintDiv.className = "rl-empty-hint";
+
+  hintDiv.innerHTML = `
+    <strong>Repository Indexing Complete!</strong>
+    <p>RepoLens has successfully scanned this repository and created text embeddings of the files. The AI is now fully initialized and ready for your commands.</p>
+    <div style="padding: 12px; background: var(--bg-primary); border-radius: 8px; border: 1px solid var(--border-muted);">
+      <p style="color: var(--text-primary); font-weight: 600; margin-bottom: 6px;">What to do next:</p>
+      <p style="font-size: 13px; line-height: 1.5;">Start typing in the input bar below. You can ask anything about the codebase. The AI will retrieve the most relevant files and answer your questions with precise citations.</p>
+    </div>
+    <p style="margin-top: 4px; font-weight: 600; color: var(--text-primary);">Try asking questions like:</p>
+    <ul>
+      <li>"Where is the main entry point of the application?"</li>
+      <li>"How is authentication handled in this codebase?"</li>
+      <li>"Explain the directory structure and main modules."</li>
+    </ul>
+    <p style="margin-top: 4px;">Or click the <strong>Map</strong> button below to generate a plain-English architecture overview of the entire repository.</p>
+  `;
+  messages.appendChild(hintDiv);
+}
+
 function loadChatHistory() {
   chrome.runtime.sendMessage(
     { type: "GET_CHAT_HISTORY", key: `chat_${repoUrl}` },
     (messages) => {
-      (messages || []).forEach((msg) =>
-        appendMessage(msg.role, msg.content, msg.sources)
-      );
-      scrollToBottom();
+      const msgs = messages || [];
+      if (msgs.length === 0) {
+        showEmptyHint();
+      } else {
+        const msgContainer = document.getElementById("rl-messages");
+        if (msgContainer) msgContainer.innerHTML = "";
+        msgs.forEach((msg) =>
+          appendMessage(msg.role, msg.content, msg.sources)
+        );
+        scrollToBottom();
+      }
     }
   );
 }
@@ -387,6 +487,12 @@ async function sendQuestion(question) {
   // Clear any existing rate limit banner
   const existingBanner = document.querySelector(".rl-rate-limit-banner");
   if (existingBanner) existingBanner.remove();
+
+  // Clear empty/welcome hint if it's currently showing
+  const messagesDiv = document.getElementById("rl-messages");
+  if (messagesDiv && messagesDiv.querySelector(".rl-empty-hint")) {
+    messagesDiv.innerHTML = "";
+  }
 
   // ── Optimistic user bubble ────────────────────────────────────────────────
   appendMessage("user", question);
@@ -560,101 +666,121 @@ async function init() {
       // No valid cached entry — prompt to index
       showState("NOT_INDEXED");
       updateStatusDot("idle");
+      const descEl = document.getElementById("rl-not-indexed-desc");
+      if (descEl) {
+        descEl.textContent = "This repository hasn't been indexed yet.";
+        descEl.style.color = "";
+      }
       if (repoUrl) fetchFileEstimate(repoUrl);
     }
   );
+  // ── 4. Bind all DOM event listeners now that HTML is in the DOM ────────────
+  bindListeners();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EVENT LISTENERS
+// Called from init() AFTER panel.html has been injected into the DOM.
+// Never call at module load time — the elements don't exist yet.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Close button — slides the panel off-screen.
- *  The 'open' class is on #rl-panel-container (set by content.js),
- *  NOT on #rl-container (inner panel div).
- */
-document.getElementById("rl-close")?.addEventListener("click", () => {
-  document.getElementById("rl-panel-container")?.classList.remove("open");
-});
+function bindListeners() {
+  /** Close button — slides the panel off-screen.
+   *  The 'open' class is on #rl-panel-container (set by content.js),
+   *  NOT on #rl-container (inner panel div).
+   */
+  document.getElementById("rl-close")?.addEventListener("click", () => {
+    document.getElementById("rl-panel-container")?.classList.remove("open");
+  });
 
-/** Copy command button (OFFLINE state) */
-document.getElementById("rl-copy-cmd")?.addEventListener("click", async function () {
-  try {
-    await navigator.clipboard.writeText("uvicorn main:app --reload");
-    this.textContent = "Copied!";
-    setTimeout(() => { this.textContent = "Copy command"; }, 2000);
-  } catch {
-    // Clipboard API unavailable (e.g. insecure context) — silently ignore
-  }
-});
+  /** Copy command button (OFFLINE state) — SVG icon, show checkmark briefly */
+  document.getElementById("rl-copy-cmd")?.addEventListener("click", async function () {
+    const btn = this;
+    const originalHTML = btn.innerHTML;
+    try {
+      await navigator.clipboard.writeText("uvicorn main:app --reload");
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 8l4 4 6-7" stroke="var(--success)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      setTimeout(() => { btn.innerHTML = originalHTML; }, 2000);
+    } catch {
+      // Clipboard API unavailable — silently ignore
+    }
+  });
 
-/** Index Repository button (NOT_INDEXED state) */
-document.getElementById("rl-index-btn")?.addEventListener("click", async () => {
-  if (!repoUrl) return;
+  /** Index Repository button (NOT_INDEXED state) */
+  document.getElementById("rl-index-btn")?.addEventListener("click", async () => {
+    if (!repoUrl) return;
 
-  try {
-    const r = await fetch(`${BACKEND}/index`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ repo_url: repoUrl }),
-      signal:  AbortSignal.timeout(10000),
-    });
+    const descEl = document.getElementById("rl-not-indexed-desc");
+    if (descEl) {
+      descEl.textContent = "This repository hasn't been indexed yet.";
+      descEl.style.color = "";
+    }
 
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    try {
+      const r = await fetch(`${BACKEND}/index`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ repo_url: repoUrl }),
+        signal:  AbortSignal.timeout(10000),
+      });
 
-    const { job_id } = await r.json();
-    showState("INDEXING");
-    updateStatusDot("indexing");
-    startPolling(job_id);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
 
-  } catch (err) {
-    // Backend call failed — fall back to OFFLINE
-    showState("OFFLINE");
-    updateStatusDot("offline");
-  }
-});
+      const { job_id } = await r.json();
+      showState("INDEXING");
+      updateStatusDot("indexing");
+      startPolling(job_id);
 
-/** Map Repo button (READY state footer) */
-document.getElementById("rl-map-btn")?.addEventListener("click", () => {
-  // Bypass empty-input check — call sendQuestion directly
-  sendQuestion(
-    "Give me a plain-English architecture overview of this repository. " +
-    "Explain what each top-level folder does, where the main entry points are, " +
-    "and how data flows through the system."
-  );
-});
+    } catch (err) {
+      // Backend call failed — fall back to OFFLINE
+      showState("OFFLINE");
+      updateStatusDot("offline");
+    }
+  });
 
-/** Send button */
-document.getElementById("rl-send")?.addEventListener("click", () => {
-  const input = document.getElementById("rl-input");
-  const q     = input?.value.trim();
-  if (!q) return;
-  input.value = "";
-  sendQuestion(q);
-});
+  /** Map Repo button (READY state footer) */
+  document.getElementById("rl-map-btn")?.addEventListener("click", () => {
+    sendQuestion(
+      "Give me a plain-English architecture overview of this repository. " +
+      "Explain what each top-level folder does, where the main entry points are, " +
+      "and how data flows through the system."
+    );
+  });
 
-/** Textarea — Enter = send, Shift+Enter = newline */
-document.getElementById("rl-input")?.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    const input = /** @type {HTMLTextAreaElement} */ (e.currentTarget);
-    const q     = input.value.trim();
+  /** Send button */
+  document.getElementById("rl-send")?.addEventListener("click", () => {
+    const input = document.getElementById("rl-input");
+    const q     = input?.value.trim();
     if (!q) return;
     input.value = "";
     sendQuestion(q);
-  }
-});
+  });
+
+  /** Textarea — Enter = send, Shift+Enter = newline */
+  document.getElementById("rl-input")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      const input = /** @type {HTMLTextAreaElement} */ (e.currentTarget);
+      const q     = input.value.trim();
+      if (!q) return;
+      input.value = "";
+      input.style.height = "";
+      sendQuestion(q);
+    }
+  });
+
+  /** Textarea auto-grow — adjusts height to content, capped by max-height in CSS */
+  document.getElementById("rl-input")?.addEventListener("input", function () {
+    this.style.height = "";
+    this.style.height = Math.min(this.scrollHeight, 100) + "px";
+  });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BOOTSTRAP
 // ─────────────────────────────────────────────────────────────────────────────
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
-} else {
-  // DOM is already ready (e.g. panel injected dynamically after parse)
-  init();
-}
+window.addEventListener("rl:mount-panel", init);
 
 function showRateLimitBanner(userMessage) {
   const existing = document.querySelector(".rl-rate-limit-banner");

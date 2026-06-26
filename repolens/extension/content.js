@@ -79,19 +79,7 @@ function injectPanelCSS() {
 
 let panelMounted = false;
 
-/**
- * Loads a script by creating a <script> element. Returns a Promise that
- * resolves when the script has loaded.
- */
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = src;
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-}
+
 
 /**
  * Fetches panel.html, inserts it into the container, then loads scripts
@@ -117,10 +105,8 @@ async function mountPanel(container) {
     hljsCss.href = chrome.runtime.getURL("lib/github-dark.min.css");
     document.head.appendChild(hljsCss);
 
-    // Load scripts in order: marked → highlight.js → panel.js
-    await loadScript(chrome.runtime.getURL("lib/marked.min.js"));
-    await loadScript(chrome.runtime.getURL("lib/highlight.min.js"));
-    await loadScript(chrome.runtime.getURL("panel/panel.js"));
+    // Notify panel.js (which is now injected via manifest.json) to init
+    window.dispatchEvent(new CustomEvent("rl:mount-panel"));
 
     panelMounted = true;
   } catch (err) {

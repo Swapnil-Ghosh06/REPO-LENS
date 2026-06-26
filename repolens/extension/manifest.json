@@ -3,13 +3,31 @@
   "name": "RepoLens",
   "version": "1.0.0",
   "description": "Chat with any GitHub repository using AI",
-  "permissions": ["activeTab", "storage", "scripting"],
-  "host_permissions": ["https://github.com/*", "http://localhost:8000/*"],
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://github.com/*",
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"
+  ],
   "content_scripts": [
     {
-      "matches": ["https://github.com/*/*"],
-      "css": ["panel/panel.css"],
-      "js": ["lib/browser-polyfill.min.js", "content.js"],
+      "matches": [
+        "https://github.com/*/*"
+      ],
+      "css": [
+        "panel/panel.css"
+      ],
+      "js": [
+        "lib/browser-polyfill.min.js",
+        "lib/marked.min.js",
+        "lib/highlight.min.js",
+        "panel/panel.js",
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
@@ -18,8 +36,13 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["panel/*", "lib/*"],
-      "matches": ["https://github.com/*"]
+      "resources": [
+        "panel/*",
+        "lib/*"
+      ],
+      "matches": [
+        "https://github.com/*"
+      ]
     }
   ],
   "browser_specific_settings": {
@@ -27,5 +50,20 @@
       "id": "repolens@extension",
       "strict_min_version": "109.0"
     }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "RepoLens"
   }
 }

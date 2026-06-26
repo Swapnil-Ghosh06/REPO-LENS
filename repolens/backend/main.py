@@ -39,7 +39,8 @@ app = FastAPI(title="RepoLens API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["chrome-extension://", "moz-extension://", "http://localhost", "http://127.0.0.1"],
+    allow_origins=["chrome-extension://", "moz-extension://", "https://github.com", "http://localhost", "http://127.0.0.1"],
+    allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
@@ -124,6 +125,22 @@ def persist_job(job_id: str) -> None:
 def startup_event():
     init_db()
     load_jobs_from_db()
+
+
+@app.on_event("startup")
+async def startup_check():
+    key = os.getenv("GEMINI_API_KEY")
+    if not key:
+        print("=" * 60)
+        print("ERROR: GEMINI_API_KEY not found in environment.")
+        print("Create a .env file in the backend/ folder with:")
+        print("  GEMINI_API_KEY=your_key_here")
+        print("Get a free key at: https://aistudio.google.com/app/apikey")
+        print("=" * 60)
+        import sys; sys.exit(1)
+    else:
+        print(f"[RepoLens] API key loaded: {key[:8]}...")
+        print("[RepoLens] Backend ready on http://localhost:8000")
 
 # ---------------------------------------------------------------------------
 # Request / Response models
@@ -313,6 +330,16 @@ async def get_status(job_id: str):
 
 
 # ---------------------------------------------------------------------------
+# ENDPOINT — GET /indexed
+# ---------------------------------------------------------------------------
+
+
+@app.get("/indexed")
+async def get_indexed(repo_url: str):
+    return {"indexed": is_indexed(repo_url)}
+
+
+# ---------------------------------------------------------------------------
 # ENDPOINT 3 — POST /query
 # ---------------------------------------------------------------------------
 
@@ -437,7 +464,7 @@ async def resume_job(job_id: str):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "ok", "version": "1.0.0", "api_key_loaded": bool(os.getenv("GEMINI_API_KEY"))}
 
 
 # ---------------------------------------------------------------------------

@@ -10,12 +10,14 @@ Usage:
     results = query_chunks(repo_url, query_vector, top_k=8)
 """
 
+import os
 import re
 
 import chromadb
 
-# Module-level persistent client - reused across all calls
-_client = chromadb.PersistentClient(path="./chroma_data")
+# Absolute path so ChromaDB works regardless of where uvicorn is launched from
+_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chroma_data")
+_client = chromadb.PersistentClient(path=_DB_PATH)
 
 
 def _collection_name(repo_url: str) -> str:

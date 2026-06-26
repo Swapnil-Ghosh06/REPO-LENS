@@ -106,14 +106,15 @@ def _sliding_window_chunks(relative_path: str, language: str,
     while pos < total:
         window = lines[pos: pos + _WINDOW_LINES]
         chunks.append({
-            "chunk_id":   f"{relative_path}::{pos + 1}",
-            "file_path":  relative_path,
-            "language":   language,
-            "chunk_type": "fallback",
-            "name":       f"chunk_{idx}",
-            "start_line": pos + 1,
-            "end_line":   pos + len(window),
-            "content":    "".join(window),
+            "chunk_id":      f"{relative_path}::{pos + 1}",
+            "file_path":     relative_path,
+            "relative_path": relative_path,
+            "language":      language,
+            "chunk_type":    "fallback",
+            "name":          f"chunk_{idx}",
+            "start_line":    pos + 1,
+            "end_line":      pos + len(window),
+            "content":       "".join(window),
         })
         idx += 1
         pos += step
@@ -164,14 +165,15 @@ def _collect_definitions(node, source_bytes: bytes, target_types: frozenset,
             chunk_type = _CHUNK_TYPE_MAP.get(node.type, "module")
 
             chunks.append({
-                "chunk_id":   f"{relative_path}::{start_line}",
-                "file_path":  relative_path,
-                "language":   language,
-                "chunk_type": chunk_type,
-                "name":       name,
-                "start_line": start_line,
-                "end_line":   end_line,
-                "content":    content,
+                "chunk_id":      f"{relative_path}::{start_line}",
+                "file_path":     relative_path,
+                "relative_path": relative_path,
+                "language":      language,
+                "chunk_type":    chunk_type,
+                "name":          name,
+                "start_line":    start_line,
+                "end_line":      end_line,
+                "content":       content,
             })
             # Still recurse into this node to catch nested classes/functions
             # (e.g. a method inside a class, or a nested function)
