@@ -48,8 +48,15 @@ function injectTriggerButton() {
   dot.id = "rl-trigger-dot";
   btn.appendChild(dot);
 
+  const icon = document.createElement("img");
+  icon.src = chrome.runtime.getURL("icons/icon32.png");
+  icon.style.width = "18px";
+  icon.style.height = "18px";
+  icon.style.marginRight = "4px";
+  btn.appendChild(icon);
+
   const label = document.createElement("span");
-  label.textContent = "</> RepoLens";
+  label.textContent = "RepoLens";
   btn.appendChild(label);
 
   document.body.appendChild(btn);
