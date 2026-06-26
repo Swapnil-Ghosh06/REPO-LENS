@@ -1,33 +1,21 @@
 """
-embedder.py - RepoLens embedding module.
+embedder.py - RepoLens embedding module with Dynamic Batching & Fallbacks.
 
-Takes a list of parsed code chunks and produces dense vector embeddings
-using the Gemini gemini-embedding-001 model (3072 dimensions) via google-genai.
-
-Chunks are processed in batches of 20 with a configurable sleep between batches
-to respect Gemini API rate limits. Each input chunk dict is returned with an
-additional "embedding" key holding a list[float] and "context_string" holding the
-formatted string sent to the embedding model.
-
-Usage:
-    from embedder import embed_chunks, embed_query
-    embedded = embed_chunks(chunks, repo_name="my-repo")
-    query_vec = embed_query("how does authentication work")
+Features:
+- Dynamic Size Limits (prevents Payload Too Large)
+- Token Tracker (prevents 1M TPM limits)
+- Divide and Conquer (isolates bad files instead of failing batches)
+- Cohere Plan B (falls back to Cohere if Gemini is exhausted)
 """
 
 import os
 import time
-
+import json
 from google import genai
 from google.genai import types
 
-
 def build_context_string(chunk: dict, repo_name: str) -> str:
-    """Build the context string prefixed to the code chunk before embedding.
-
-    Provides location and purpose metadata in a structured header.
-    Truncates content to 8000 characters max as per the spec.
-    """
+    """Build the context string prefixed to the code chunk before embedding."""
     header = (
         f"File: {chunk['relative_path']}\n"
         f"Language: {chunk['language']}\n"
@@ -36,158 +24,220 @@ def build_context_string(chunk: dict, repo_name: str) -> str:
         f"Lines: {chunk['start_line']}-{chunk['end_line']}\n"
         f"Repo: {repo_name}\n\n"
     )
-    # Truncate content so header + content doesn't exceed 8000 limit
     max_content_len = max(0, 8000 - len(header))
     content = chunk['content'][:max_content_len]
     return header + content
 
-
-def embed_chunks(chunks: list[dict], repo_name: str, progress_callback=None, job_id: str = None) -> list[dict]:
-    """Embed a list of parsed code chunks using Gemini gemini-embedding-001.
-
-    Args:
-        chunks:            List of chunk dicts produced by parser.chunk_files().
-        repo_name:         Human-readable repository name (e.g. "owner/repo").
-        progress_callback: Optional callable(done, total) to report batch progress.
-
-    Returns:
-        A list of dicts. Every successfully embedded chunk contains all
-        original fields plus "embedding" (list[float], 3072 dims) and
-        "context_string" (str). Failed chunks are skipped with a warning.
-    """
-    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
-    batch_size = 20
-    total_batches = (len(chunks) + batch_size - 1) // batch_size
-    embedded_chunks: list[dict] = []
+def _execute_gemini_batch_with_divide_and_conquer(client, batch: list) -> list:
+    """Recursively processes a batch. If it fails, slices it in half to isolate bad chunks."""
+    if not batch:
+        return []
+        
+    contexts = [ctx for _, ctx in batch]
     
-    rate_limit_delay = float(os.getenv("RATE_LIMIT_DELAY", "1.0"))
-
-    for batch_index in range(total_batches):
-        start = batch_index * batch_size
-        end = start + batch_size
-        batch = chunks[start:end]
-
-        # Prepare context strings
-        batch_contexts = [build_context_string(c, repo_name) for c in batch]
+    try:
+        result = client.models.embed_content(
+            model="models/gemini-embedding-001",
+            contents=contexts,
+            config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
+        )
+        # Success! Map embeddings back to chunks
+        embedded = []
+        for i, (chunk, ctx) in enumerate(batch):
+            vector = result.embeddings[i].values
+            embedded.append({
+                **chunk,
+                "context_string": ctx,
+                "embedding": list(vector)
+            })
+        return embedded
+    except Exception as exc:
+        err_str = str(exc).upper()
+        # If it's a hard rate limit, we should raise it to trigger the Plan B or sleep.
+        if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "QUOTA" in err_str:
+            raise RuntimeError("GEMINI_RATE_LIMIT")
+            
+        # If it's a generic payload/validation error, divide and conquer!
+        if len(batch) == 1:
+            chunk = batch[0][0]
+            print(f"[WARNING] Skipping bad chunk '{chunk.get('name')}' after isolating it: {exc}")
+            return []
+            
+        print(f"[DIVIDE & CONQUER] Batch of {len(batch)} failed. Slicing in half to isolate bad file...")
+        mid = len(batch) // 2
+        left_batch = batch[:mid]
+        right_batch = batch[mid:]
         
+        # Add slight delay to prevent hammering during recursion
+        time.sleep(1)
+        left_embedded = _execute_gemini_batch_with_divide_and_conquer(client, left_batch)
+        time.sleep(1)
+        right_embedded = _execute_gemini_batch_with_divide_and_conquer(client, right_batch)
+        
+        return left_embedded + right_embedded
+
+def _embed_chunks_gemini(chunks: list[dict], repo_name: str, progress_callback) -> list[dict]:
+    """Embed chunks using Gemini with Token Tracking and Dynamic Batching."""
+    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    embedded_chunks = []
+    
+    MAX_PAYLOAD_CHARS = 40000
+    MAX_TOKENS_PER_MIN = 800000
+    TOKENS_PER_CHAR = 0.25 # Approx 4 chars per token
+    
+    # 1. Dynamic Batching
+    batches = []
+    current_batch = []
+    current_chars = 0
+    for chunk in chunks:
+        ctx = build_context_string(chunk, repo_name)
+        char_len = len(ctx)
+        
+        if char_len > MAX_PAYLOAD_CHARS:
+            print(f"[WARNING] Chunk '{chunk.get('name')}' is too large ({char_len} chars). Skipping.")
+            continue
+            
+        if current_chars + char_len > MAX_PAYLOAD_CHARS or len(current_batch) >= 100:
+            batches.append(current_batch)
+            current_batch = []
+            current_chars = 0
+            
+        current_batch.append((chunk, ctx))
+        current_chars += char_len
+        
+    if current_batch:
+        batches.append(current_batch)
+        
+    # 2. Token Tracker & Execution
+    tokens_this_minute = 0
+    minute_start_time = time.time()
+    chunks_processed = 0
+    total_chunks = len(chunks)
+    
+    for batch_index, batch in enumerate(batches):
+        batch_tokens = sum(len(ctx) * TOKENS_PER_CHAR for _, ctx in batch)
+        
+        now = time.time()
+        if now - minute_start_time > 60:
+            tokens_this_minute = 0
+            minute_start_time = now
+            
+        if tokens_this_minute + batch_tokens > MAX_TOKENS_PER_MIN:
+            sleep_time = max(0.0, 60.0 - (now - minute_start_time))
+            print(f"[TOKEN TRACKER] Nearing 1M TPM. Pausing for {sleep_time:.1f}s...")
+            time.sleep(sleep_time)
+            tokens_this_minute = 0
+            minute_start_time = time.time()
+            
+        print(f"Embedding batch {batch_index + 1}/{len(batches)} (Gemini)...")
+        
+        # Retry loop for Rate Limits specifically
         retry_count = 0
-        batch_success = False
-
-        while retry_count <= 3:
-            if retry_count > 0:
-                print(f"Embedding batch {batch_index + 1}/{total_batches} (Retry {retry_count}/3)...")
-            else:
-                print(f"Embedding batch {batch_index + 1}/{total_batches}...")
-
+        while retry_count < 3:
             try:
-                # Batch embedding API call
-                result = client.models.embed_content(
-                    model="models/gemini-embedding-001",
-                    contents=batch_contexts,
-                    config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
-                )
-                
-                # Map results back to chunks
-                for i, chunk in enumerate(batch):
-                    vector = result.embeddings[i].values
-                    embedded_chunks.append({
-                        **chunk,
-                        "context_string": batch_contexts[i],
-                        "embedding": list(vector)
-                    })
-                batch_success = True
+                embedded_batch = _execute_gemini_batch_with_divide_and_conquer(client, batch)
+                embedded_chunks.extend(embedded_batch)
                 break
-            except Exception as exc:
-                err_str = str(exc).upper()
-                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "QUOTA" in err_str:
+            except RuntimeError as e:
+                if "GEMINI_RATE_LIMIT" in str(e):
+                    retry_count += 1
                     if retry_count < 3:
-                        retry_count += 1
-                        print(f"[RATE LIMIT] Waiting 60s before retry {retry_count}/3...")
-                        time.sleep(60)
+                        backoff = 15 * retry_count
+                        print(f"[RATE LIMIT] Gemini exhausted. Backing off for {backoff}s (Retry {retry_count}/3)...")
+                        time.sleep(backoff)
                     else:
-                        print(f"[WARNING] Batch {batch_index + 1} failed after 3 retries due to rate limits. Skipping.")
-                        retry_count = 4
-                        break
+                        raise RuntimeError("GEMINI_EXHAUSTED_FATAL")
                 else:
-                    # Fall back to single embedding calls if the batch fails with non-429
-                    print(f"[WARNING] Batch {batch_index + 1} embedding failed: {exc}. Retrying items individually...")
-                    break
+                    raise e
         
-        # If batch failed with non-429, try individually
-        if not batch_success and retry_count < 3:
-            for i, chunk in enumerate(batch):
-                ctx_str = batch_contexts[i]
-                item_retry = 0
-                
-                while item_retry < 5:
-                    try:
-                        result = client.models.embed_content(
-                            model="models/gemini-embedding-001",
-                            contents=ctx_str,
-                            config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
-                        )
-                        vector = result.embeddings[0].values
-                        embedded_chunks.append({
-                            **chunk,
-                            "context_string": ctx_str,
-                            "embedding": list(vector)
-                        })
-                        break
-                    except Exception as item_exc:
-                        item_err = str(item_exc).upper()
-                        if "429" in item_err or "RESOURCE_EXHAUSTED" in item_err or "QUOTA" in item_err:
-                            item_retry += 1
-                            if item_retry < 5:
-                                delay = min(2 ** item_retry, 60)
-                                print(f"[WARNING] Rate limit hit on chunk '{chunk.get('name', '?')}'. Backing off for {delay} seconds...")
-                                time.sleep(delay)
-                            else:
-                                print(f"[WARNING] Chunk '{chunk.get('name', '?')}' failed after 5 rate-limit retries: {item_exc}")
-                        else:
-                            print(
-                                f"[WARNING] Failed to embed chunk '{chunk.get('name', '?')}'"
-                                f" in {chunk.get('relative_path', '?')}: {item_exc}"
-                            )
-                            break
-
+        tokens_this_minute += batch_tokens
+        chunks_processed += len(batch)
+        
         if progress_callback:
-            try:
-                if progress_callback(min(end, len(chunks)), len(chunks)) is False:
-                    break
-            except Exception as cb_exc:
-                print(f"[WARNING] Progress callback failed: {cb_exc}")
-
-        # Sleep between batches to respect rate limits; skip after the last batch
-        if batch_index < total_batches - 1:
-            time.sleep(rate_limit_delay)
-
-    # Identify un-embedded chunks (e.g. due to 429 rate limits or other failures)
-    embedded_ids = {c["chunk_id"] for c in embedded_chunks if "chunk_id" in c}
-    failed_chunk_ids = [c["chunk_id"] for c in chunks if "chunk_id" in c and c["chunk_id"] not in embedded_ids]
-
-    if failed_chunk_ids and job_id:
-        import json
-        failed_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"failed_chunks_{job_id}.json")
-        try:
-            with open(failed_file, "w") as f:
-                json.dump(failed_chunk_ids, f)
-            print(f"[INFO] Saved {len(failed_chunk_ids)} failed chunk IDs to {failed_file}")
-        except Exception as e:
-            print(f"[WARNING] Failed to write failed chunks file: {e}")
-
+            progress_callback(min(chunks_processed, total_chunks), total_chunks)
+            
+        time.sleep(1.0) # Base tiny delay to smooth RPM
+        
     return embedded_chunks
 
+def _embed_chunks_cohere(chunks: list[dict], repo_name: str, progress_callback) -> list[dict]:
+    """Fallback Plan B engine using Cohere Embed v3."""
+    # pyrefly: ignore [missing-import]
+    import cohere
+    api_key = os.getenv("COHERE_API_KEY")
+    if not api_key:
+        raise ValueError("COHERE_API_KEY is not set. Cannot use Plan B fallback.")
+        
+    co = cohere.Client(api_key=api_key)
+    embedded_chunks = []
+    
+    # Cohere batch max is usually 96
+    batches = []
+    current_batch = []
+    for chunk in chunks:
+        ctx = build_context_string(chunk, repo_name)
+        if len(current_batch) >= 90:
+            batches.append(current_batch)
+            current_batch = []
+        current_batch.append((chunk, ctx))
+    if current_batch:
+        batches.append(current_batch)
+        
+    chunks_processed = 0
+    total_chunks = len(chunks)
+    
+    for batch_index, batch in enumerate(batches):
+        print(f"Embedding batch {batch_index + 1}/{len(batches)} (Cohere Plan B)...")
+        texts = [ctx for _, ctx in batch]
+        
+        try:
+            response = co.embed(texts=texts, model="embed-english-v3.0", input_type="search_document")
+            for i, (chunk, ctx) in enumerate(batch):
+                embedded_chunks.append({
+                    **chunk,
+                    "context_string": ctx,
+                    "embedding": response.embeddings[i],
+                    "provider": "cohere"
+                })
+        except Exception as e:
+            print(f"[WARNING] Cohere batch failed: {e}")
+            
+        chunks_processed += len(batch)
+        if progress_callback:
+            progress_callback(min(chunks_processed, total_chunks), total_chunks)
+            
+        time.sleep(0.5)
+        
+    return embedded_chunks
 
-def embed_query(question: str) -> list[float]:
-    """Embed a single query string for vector search using RETRIEVAL_QUERY.
+def embed_chunks(chunks: list[dict], repo_name: str, progress_callback=None, job_id: str = None) -> list[dict]:
+    """Main entrypoint. Tries Gemini, falls back to Cohere if completely exhausted."""
+    
+    try:
+        embedded = _embed_chunks_gemini(chunks, repo_name, progress_callback)
+        # Tag provider so vectorstore knows
+        for c in embedded:
+            c["provider"] = "gemini"
+    except Exception as e:
+        err_str = str(e).upper()
+        if "GEMINI_EXHAUSTED_FATAL" in err_str:
+            print("[PLAN B] Gemini is completely exhausted. Switching to Cohere Plan B Engine...")
+            embedded = _embed_chunks_cohere(chunks, repo_name, progress_callback)
+        else:
+            raise e
+            
+    return embedded
 
-    Args:
-        question: The user query string.
-
-    Returns:
-        A list of floats representing the query embedding vector (3072 dims).
-    """
+def embed_query(question: str, provider: str = "gemini") -> list[float]:
+    """Embed a query, using the matching provider that indexed the repo."""
+    if provider == "cohere":
+        # pyrefly: ignore [missing-import]
+        import cohere
+        co = cohere.Client(api_key=os.getenv("COHERE_API_KEY"))
+        res = co.embed(texts=[question], model="embed-english-v3.0", input_type="search_query")
+        return res.embeddings[0]
+        
+    # Default to Gemini
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
     result = client.models.embed_content(
         model="models/gemini-embedding-001",

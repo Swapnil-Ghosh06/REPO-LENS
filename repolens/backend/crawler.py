@@ -130,8 +130,12 @@ def _repo_name_from_url(repo_url: str) -> str:
 
 
 def _clone_or_reuse(repo_url: str, local_dir: Path) -> None:
-    """Clone *repo_url* into *local_dir*, or skip if it already exists."""
+    """Clone *repo_url* into *local_dir*, or pull if it already exists."""
     if local_dir.exists():
+        try:
+            git.Repo(local_dir).remotes.origin.pull()
+        except Exception:
+            pass # Ignore pull errors, use what we have
         return
 
     CLONE_BASE_DIR.mkdir(parents=True, exist_ok=True)

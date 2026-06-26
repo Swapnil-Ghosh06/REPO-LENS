@@ -20,9 +20,14 @@
   <header id="rl-header">
     <div id="rl-header-left">
       <span id="rl-status-dot"></span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; color: var(--accent);">
+        <polyline points="16 18 22 12 16 6"></polyline>
+        <polyline points="8 6 2 12 8 18"></polyline>
+      </svg>
       <span id="rl-header-label">RepoLens</span>
     </div>
     <div id="rl-header-right">
+      <button id="rl-refresh-btn" title="Refresh panel" aria-label="Refresh RepoLens panel">↺</button>
       <button id="rl-help-btn" title="Help" aria-label="Help">?</button>
       <button id="rl-minimize" title="Minimize panel" aria-label="Minimize RepoLens panel">−</button>
       <button id="rl-close" title="Terminate RepoLens" aria-label="Terminate RepoLens panel">×</button>
@@ -40,13 +45,11 @@
       <button id="rl-help-close" title="Close help" aria-label="Close help">×</button>
     </div>
     <div class="rl-help-content">
-      <h2>Getting Started</h2>
-      <p>The backend must be running before you use this extension.<br>
-      Start it with: <code class="rl-help-code">uvicorn main:app --reload</code><br>
-      Run this from the repolens/backend/ folder with your venv active.</p>
+      <h2>Why RepoLens?</h2>
+      <p>RepoLens is your personal AI companion for exploring codebases. We built this simple, free-to-use extension to save you countless hours of reading through undocumented code. What makes RepoLens different? It turns difficult repositories into interactive conversations, helping you instantly understand complex architectures, locate key logic, and make your work significantly easier—all without ever leaving GitHub.</p>
 
-      <h2>What is Indexing?</h2>
-      <p>RepoLens reads every code file in the repository, breaks them into logical chunks, and stores them as searchable vectors. This takes 1-3 minutes for most repos and only needs to happen once per repo.</p>
+      <h2>Getting Started</h2>
+      <p>To use RepoLens, make sure your local RepoLens backend application is running. Once the server is active, just click the <strong>Index Repository</strong> button. RepoLens will read the code, break it down intelligently, and store it so you can start asking questions. This only takes a minute or two and only needs to happen once per repository.</p>
 
       <h2>Good Questions to Ask</h2>
       <ul class="rl-help-list">
@@ -57,25 +60,24 @@
         <li><span class="rl-check">✓</span> "How is error handling implemented?"</li>
       </ul>
 
-      <h2>Limitations</h2>
+      <h2>Limitations & API Limits</h2>
       <ul class="rl-help-list-bullet">
         <li><span class="rl-bullet">•</span> Public repositories only (v1)</li>
         <li><span class="rl-bullet">•</span> Maximum 500 files / 50MB per repo</li>
-        <li><span class="rl-bullet">•</span> Backend must be running on localhost:8000</li>
-        <li><span class="rl-bullet">•</span> Requires a free Gemini API key</li>
+        <li><span class="rl-bullet">•</span> Uses Google Gemini's free tier (15 requests/min)</li>
       </ul>
-
-      <h2>API Limits</h2>
-      <p>RepoLens uses Google Gemini's free tier.<br>
-      Limit: 15 requests/minute, 1,500/day.<br>
-      If you hit the limit, wait 60 seconds and try again.<br>
-      Indexing large repos may pause briefly — this is normal.</p>
+      <p>If you hit the AI rate limit, simply wait 60 seconds and try again. Brief pauses during indexing are completely normal to prevent overloading the API.</p>
 
       <h2>Troubleshooting</h2>
-      <p><strong>Backend offline →</strong> Start uvicorn, check your terminal for errors<br>
-      <strong>Key: NONE error →</strong> Check .env file has no spaces around the = sign<br>
-      <strong>Index fails →</strong> Repo may be too large (>500 files). Try a smaller repo.<br>
-      <strong>Answer is wrong →</strong> Re-index the repo, the codebase may have changed.</p>
+      <p><strong>Service Worker "Inactive"?</strong><br>
+      If you open your browser's extension settings and see the service worker listed as "inactive," do not worry! This is a built-in feature of modern Chrome extensions to save memory. The service worker goes to sleep automatically and will wake up instantly the moment you interact with RepoLens.</p>
+      
+      <p><strong>Backend offline →</strong> Ensure your RepoLens server application is running.<br>
+      <strong>Key: NONE error →</strong> Check that your configuration file has your API key set correctly.<br>
+      <strong>Index fails →</strong> The repository may be too large (>500 files).</p>
+
+      <h2>About the Developer</h2>
+      <p>RepoLens is crafted with a vision to make open-source code accessible to everyone. We are actively working on it, and the extension will soon be officially published on the Chrome Web Store! Thank you for being part of the journey to empower developers to learn, build, and ship faster.</p>
     </div>
     <button id="rl-help-maximize" title="Toggle size" aria-label="Toggle size">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>

@@ -68,9 +68,15 @@ def store_chunks(repo_url: str, chunks: list[dict]) -> None:
     except Exception:
         pass  # Collection did not exist - that is fine
 
+    # Determine provider from chunks
+    provider = chunks[0].get("provider", "gemini") if chunks else "gemini"
+
     collection = _client.create_collection(
         name=col_name,
-        metadata={"hnsw:space": "cosine"},
+        metadata={
+            "hnsw:space": "cosine",
+            "provider": provider
+        },
     )
 
     batch_size = 100
@@ -163,3 +169,12 @@ def is_indexed(repo_url: str) -> bool:
         return collection.count() > 0
     except Exception:
         return False
+
+def get_provider(repo_url: str) -> str:
+    """Retrieve the embedding provider used for a repository's collection."""
+    col_name = _collection_name(repo_url)
+    try:
+        collection = _client.get_collection(col_name)
+        return collection.metadata.get("provider", "gemini") if collection.metadata else "gemini"
+    except Exception:
+        return "gemini"

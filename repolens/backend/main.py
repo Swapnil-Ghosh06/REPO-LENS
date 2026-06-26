@@ -39,8 +39,8 @@ app = FastAPI(title="RepoLens API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["chrome-extension://", "moz-extension://", "https://github.com", "http://localhost", "http://127.0.0.1"],
-    allow_credentials=True,
+    allow_origins=["*"],  # localhost-only backend — wildcard is safe here
+    allow_credentials=False,  # must be False when allow_origins=["*"]
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
@@ -90,7 +90,15 @@ def load_jobs_from_db():
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM jobs")
     for row in cursor.fetchall():
-        jobs[row["job_id"]] = dict(row)
+        job = dict(row)
+        # If the server restarted, any job that was active is now dead
+        if job["status"] in ("cloning", "parsing", "indexing", "queued"):
+            job["status"] = "error"
+            job["error"] = "Backend restarted during indexing. Please re-index."
+            cursor.execute("UPDATE jobs SET status = ?, error = ? WHERE job_id = ?",
+                           (job["status"], job["error"], job["job_id"]))
+        jobs[job["job_id"]] = job
+    conn.commit()
     conn.close()
 
 def persist_job(job_id: str) -> None:
@@ -123,12 +131,6 @@ def persist_job(job_id: str) -> None:
 
 @app.on_event("startup")
 def startup_event():
-    init_db()
-    load_jobs_from_db()
-
-
-@app.on_event("startup")
-async def startup_check():
     key = os.getenv("GEMINI_API_KEY")
     if not key:
         print("=" * 60)
@@ -141,6 +143,9 @@ async def startup_check():
     else:
         print(f"[RepoLens] API key loaded: {key[:8]}...")
         print("[RepoLens] Backend ready on http://localhost:8000")
+
+    init_db()
+    load_jobs_from_db()
 
 # ---------------------------------------------------------------------------
 # Request / Response models
@@ -406,93 +411,7 @@ async def query_repo(request: QueryRequest):
     )
 
 
-# ---------------------------------------------------------------------------
-# ENDPOINT — GET /resume/{job_id}
-# ---------------------------------------------------------------------------
 
-
-@app.get("/resume/{job_id}", status_code=202)
-async def resume_job(job_id: str):
-    job = jobs.get(job_id)
-    if job is None:
-        if os.path.exists(DB_PATH):
-            conn = sqlite3.connect(DB_PATH)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,))
-            row = cursor.fetchone()
-            conn.close()
-            if row:
-                job = dict(row)
-                jobs[job_id] = job
-            else:
-                return JSONResponse(
-                    status_code=404,
-                    content={"error": "not_found", "message": "Job not found"},
-                )
-        else:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "not_found", "message": "Job not found"},
-            )
-
-    failed_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"failed_chunks_{job_id}.json")
-    if not os.path.exists(failed_file):
-        return JSONResponse(
-            status_code=400,
-            content={"error": "no_failed_chunks", "message": "No failed chunks found for this job ID"},
-        )
-
-    # Reset job fields and kick off background thread
-    job["status"] = "indexing"
-    job["error"] = None
-    job["progress"] = 50
-    persist_job(job_id)
-
-    def run_resume():
-        try:
-            with open(failed_file, "r") as f:
-                failed_ids = set(json.load(f))
-
-            files = crawl_repo(job["repo_url"])
-            chunks = chunk_files(files)
-
-            failed_chunks = [c for c in chunks if c.get("chunk_id") in failed_ids]
-            if not failed_chunks:
-                try:
-                    os.remove(failed_file)
-                except OSError:
-                    pass
-                job["status"] = "done"
-                job["progress"] = 100
-                persist_job(job_id)
-                return
-
-            def resume_progress(done: int, total: int) -> None:
-                job["files_processed"] = done
-                job["total_files"] = total
-                job["progress"] = 50 + int((done / total) * 50) if total > 0 else 50
-                persist_job(job_id)
-
-            embedded = embed_chunks(failed_chunks, repo_name=job["repo_name"], progress_callback=resume_progress, job_id=job_id)
-            store_chunks(job["repo_url"], embedded)
-
-            try:
-                os.remove(failed_file)
-            except OSError:
-                pass
-
-            job["status"] = "done"
-            job["progress"] = 100
-            persist_job(job_id)
-
-        except Exception as e:
-            job["status"] = "error"
-            job["error"] = str(e)
-            persist_job(job_id)
-
-    threading.Thread(target=run_resume, daemon=True).start()
-    return JSONResponse(content={"job_id": job_id, "status": "resumed"})
 
 
 # ---------------------------------------------------------------------------

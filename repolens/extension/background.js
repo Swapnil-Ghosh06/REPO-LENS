@@ -6,6 +6,29 @@
  * via chrome.runtime.sendMessage (per Rule 7 in Rules.md).
  */
 
+// ─── Service Worker Keepalive ─────────────────────────────────────────────────
+// Chrome MV3 terminates idle service workers after ~30 seconds.
+// chrome.alarms wakes the worker every ~24 seconds for <10ms — near-zero RAM.
+// This is the official Google-recommended keepalive pattern for MV3 extensions.
+// The worker is NOT kept permanently in RAM — it sleeps between alarm ticks.
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.alarms.create("rl-keepalive", { periodInMinutes: 0.4 }); // ~24 seconds
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  // Alarms don't survive Chrome restarts — recreate on every startup
+  chrome.alarms.create("rl-keepalive", { periodInMinutes: 0.4 });
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  // No-op handler — the act of responding keeps the service worker alive.
+  // Do NOT add logic here; this must stay empty to avoid CPU overhead.
+  if (alarm.name !== "rl-keepalive") return;
+});
+
+// ─── Storage Message Router ───────────────────────────────────────────────────
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   switch (message.type) {
     // ─── Repo index status ───────────────────────────────────────────────────

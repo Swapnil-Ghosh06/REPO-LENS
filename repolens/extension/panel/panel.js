@@ -31,6 +31,10 @@ let isSending = false;
 let currentJobId = null;
 /** @type {string|null} Tracks the previous state before opening help */
 let prevState = null;
+/** @type {number|null} setInterval ID from startPolling() — declared here to prevent global leak */
+let pollInterval = null;
+/** @type {Function|null} Cleanup fn for the visibilitychange offline retry listener */
+let offlineRetryCleanup = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STATE MACHINE
@@ -196,6 +200,15 @@ function startPolling(job_id) {
 
       const job = await r.json();
 
+      // Update indexing label dynamically based on phase
+      const labelEl = document.getElementById("rl-indexing-label");
+      if (labelEl) {
+        if (job.status === "cloning") labelEl.textContent = "Cloning repository...";
+        else if (job.status === "parsing") labelEl.textContent = "Parsing files...";
+        else if (job.status === "indexing") labelEl.textContent = "Generating embeddings...";
+        else labelEl.textContent = "Indexing repository...";
+      }
+
       // Update progress bar
       const fillEl = document.getElementById("rl-progress-fill");
       if (fillEl) fillEl.style.width = `${job.progress ?? 0}%`;
@@ -228,7 +241,11 @@ function startPolling(job_id) {
       const m         = Math.floor(elapsed / 60);
       const s         = String(elapsed % 60).padStart(2, "0");
       const elapsedEl = document.getElementById("rl-elapsed");
-      if (elapsedEl) elapsedEl.textContent = `Elapsed: ${m}:${s}`;
+      if (elapsedEl) {
+        // Hide "0:00" initially so it doesn't look broken
+        elapsedEl.style.opacity = elapsed < 3 ? "0" : "1";
+        elapsedEl.textContent = `Elapsed: ${m}:${s}`;
+      }
 
       // ── Terminal states ────────────────────────────────────────────────────
 
@@ -387,7 +404,7 @@ function renderCitations(sources, msgDiv, container) {
       chip.href = sortedLines.length > 0 ? `${baseUrl}#L${sortedLines[0]}` : baseUrl;
     } else {
       // Fallback: reconstruct from repoName if backend didn't provide github_url
-      chip.href = `https://github.com/${repoName}/blob/main/${relativePath}${
+      chip.href = `https://github.com/${repoName}/blob/HEAD/${relativePath}${
         sortedLines.length > 0 ? `#L${sortedLines[0]}` : ""
       }`;
     }
@@ -629,29 +646,40 @@ async function sendQuestion(question) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// INIT
+// OFFLINE RETRY — Page Visibility API (zero timers, zero background RAM)
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function init() {
-  // ── 1. Resolve identity from container dataset ─────────────────────────────
-  // content.js sets data-repo-url on #rl-panel-container (outer wrapper).
-  // #rl-container (inner, from panel.html) does NOT have it.
-  const outerContainer = document.getElementById("rl-panel-container");
-  const container = document.getElementById("rl-container");
-  if (!container) return;
+/**
+ * Registers a one-shot visibilitychange listener that re-runs
+ * checkBackendAndRoute() the next time the user brings this tab into focus.
+ * Zero polling overhead — fires only on user tab-switch action.
+ */
+function scheduleOfflineRetry() {
+  // Cancel any previously registered listener to prevent stacking
+  if (offlineRetryCleanup) { offlineRetryCleanup(); offlineRetryCleanup = null; }
 
-  repoUrl  = outerContainer?.dataset?.repoUrl ?? "";
-  repoName = repoUrl.replace("https://github.com/", "");
+  function onVisible() {
+    if (document.visibilityState === "visible") {
+      document.removeEventListener("visibilitychange", onVisible);
+      offlineRetryCleanup = null;
+      checkBackendAndRoute();
+    }
+  }
 
-  // Propagate to inner container for any child components that may need it
-  if (container) container.dataset.repoUrl = repoUrl;
+  document.addEventListener("visibilitychange", onVisible);
+  offlineRetryCleanup = () => document.removeEventListener("visibilitychange", onVisible);
+}
 
-  const repoNameEl    = document.getElementById("rl-repo-name");
-  const repoDisplayEl = document.getElementById("rl-repo-display");
-  if (repoNameEl)    repoNameEl.textContent    = repoName;
-  if (repoDisplayEl) repoDisplayEl.textContent = repoName;
+/**
+ * Re-runnable health check + state routing.
+ * Called by: init(), the refresh button, and scheduleOfflineRetry().
+ * Does NOT re-bind DOM listeners — that is init()'s sole responsibility.
+ */
+async function checkBackendAndRoute() {
+  // Cancel any pending offline retry before starting a fresh check
+  if (offlineRetryCleanup) { offlineRetryCleanup(); offlineRetryCleanup = null; }
 
-  // ── 2. Health check ────────────────────────────────────────────────────────
+  // ── Health check ────────────────────────────────────────────────────────────
   try {
     const r = await fetch(`${BACKEND}/health`, {
       signal: AbortSignal.timeout(3000),
@@ -660,10 +688,11 @@ async function init() {
   } catch {
     showState("OFFLINE");
     updateStatusDot("offline");
+    scheduleOfflineRetry(); // Re-check next time user focuses this tab — no timer
     return;
   }
 
-  // ── 3. Check storage for prior index ──────────────────────────────────────
+  // ── Check storage for prior index ───────────────────────────────────────────
   chrome.runtime.sendMessage(
     { type: "GET_REPO_STATUS", repo_url: repoUrl },
     (entry) => {
@@ -687,7 +716,35 @@ async function init() {
       if (repoUrl) fetchFileEstimate(repoUrl);
     }
   );
-  // ── 4. Bind all DOM event listeners now that HTML is in the DOM ────────────
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function init() {
+  // ── 1. Resolve identity from container dataset ─────────────────────────────
+  // content.js sets data-repo-url on #rl-panel-container (outer wrapper).
+  // #rl-container (inner, from panel.html) does NOT have it.
+  const outerContainer = document.getElementById("rl-panel-container");
+  const container = document.getElementById("rl-container");
+  if (!container) return;
+
+  repoUrl  = outerContainer?.dataset?.repoUrl ?? "";
+  repoName = repoUrl.replace("https://github.com/", "");
+
+  // Propagate to inner container for any child components that may need it
+  if (container) container.dataset.repoUrl = repoUrl;
+
+  const repoNameEl    = document.getElementById("rl-repo-name");
+  const repoDisplayEl = document.getElementById("rl-repo-display");
+  if (repoNameEl)    repoNameEl.textContent    = repoName;
+  if (repoDisplayEl) repoDisplayEl.textContent = repoName;
+
+  // ── 2+3. Health check + state routing ──────────────────────────────────────
+  await checkBackendAndRoute();
+
+  // ── 4. Bind all DOM event listeners (called only once on mount) ─────────────
   bindListeners();
 }
 
@@ -746,6 +803,22 @@ function bindListeners() {
     if (overlay) {
       overlay.classList.toggle("maximized");
     }
+  });
+
+  /**
+   * Refresh button — re-runs health check + state routing from any panel state.
+   * Does NOT re-bind listeners (calls checkBackendAndRoute, not init).
+   * Spins the icon for 0.6s as visual feedback.
+   */
+  document.getElementById("rl-refresh-btn")?.addEventListener("click", async () => {
+    const btn = document.getElementById("rl-refresh-btn");
+    if (btn) { btn.classList.add("rl-spinning"); btn.disabled = true; }
+    // Stop any active indexing poll before re-checking
+    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+    await checkBackendAndRoute();
+    setTimeout(() => {
+      if (btn) { btn.classList.remove("rl-spinning"); btn.disabled = false; }
+    }, 600);
   });
 
   /** Copy command button (OFFLINE state) — SVG icon, show checkmark briefly */
