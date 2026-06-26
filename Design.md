@@ -148,7 +148,7 @@ No box-shadow. No border-radius on the panel. Flush with screen edges.
 }
 ```
 
-Icon: `</>` text in `#8b949e`, 13px JetBrains Mono. NOT a chat bubble. NOT a sparkle. NOT a robot.
+Icon: `icons/icon32.png` image. NOT a standard chat bubble. NOT a sparkle. NOT a robot. It uses the official RepoLens branding.
 
 ---
 
@@ -250,13 +250,28 @@ Elapsed time:
 
 **User message:**
 ```css
+.rl-message-wrapper {
+  display: flex;
+  align-items: flex-end;
+  margin: 12px 16px;
+  gap: 8px;
+}
+.rl-message-wrapper.user {
+  flex-direction: row-reverse;
+}
+.rl-message-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid var(--border-muted);
+}
 .rl-message-user {
-  margin: 8px 16px 8px auto;
-  max-width: 88%;
+  max-width: 85%;
   padding: 8px 12px;
   background: #1f3244;
   border: 1px solid #30478c;
-  border-radius: 8px 8px 2px 8px;
+  border-radius: 12px 12px 2px 12px;
   font: 13px Inter, sans-serif;
   color: #e6edf3;
   line-height: 1.5;
@@ -266,13 +281,14 @@ Elapsed time:
 **Assistant message:**
 ```css
 .rl-message-assistant {
-  margin: 8px 16px;
-  max-width: 100%;
-  padding: 0;
+  max-width: 85%;
+  padding: 8px 12px;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 12px 12px 12px 2px;
   font: 13px Inter, sans-serif;
   color: #e6edf3;
   line-height: 1.6;
-  /* no bubble — text flows directly */
 }
 
 .rl-message-assistant code {
@@ -467,8 +483,6 @@ transition: width 0.3s ease-out;
 - No settings panel in v1
 - No onboarding tooltips or overlays
 - No success animations when indexing completes — just transition to READY
-- No placeholder "suggested questions" bubbles
 - No confetti, particle effects, or celebration UI
-- No chat avatars or user icons
 - No "powered by" branding inside the panel
 - No loading skeletons with pulse animations

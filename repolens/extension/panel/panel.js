@@ -306,12 +306,34 @@ function startPolling(job_id) {
  * @param {Array}              sources  — citation objects [{file, line}, ...]
  * @returns {HTMLElement}      the created element (for streaming updates)
  */
+function createMessageWrapper(role) {
+  const wrapper = document.createElement("div");
+  wrapper.className = `rl-message-wrapper rl-message-wrapper-${role}`;
+
+  const avatar = document.createElement("img");
+  avatar.className = "rl-message-avatar";
+  
+  if (role === "user") {
+    const ghAvatarMeta = document.querySelector('meta[name="user-avatar"]');
+    const ghAvatarImg = document.querySelector('.avatar-user');
+    avatar.src = ghAvatarMeta?.content || ghAvatarImg?.src || "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png";
+  } else {
+    avatar.src = chrome.runtime.getURL("icons/icon32.png");
+  }
+  wrapper.appendChild(avatar);
+
+  const div = document.createElement("div");
+  div.classList.add("rl-message", `rl-message-${role}`);
+  wrapper.appendChild(div);
+
+  return { wrapper, div };
+}
+
 function appendMessage(role, content, sources = []) {
   const messages = document.getElementById("rl-messages");
   if (!messages) return null;
 
-  const div = document.createElement("div");
-  div.classList.add("rl-message", `rl-message-${role}`);
+  const { wrapper, div } = createMessageWrapper(role);
 
   if (role === "user") {
     div.textContent = content;
@@ -338,7 +360,7 @@ function appendMessage(role, content, sources = []) {
   timeEl.textContent = `${hh}:${mm}`;
   div.appendChild(timeEl);
 
-  messages.appendChild(div);
+  messages.appendChild(wrapper);
   return div;
 }
 
@@ -537,13 +559,13 @@ async function sendQuestion(question) {
 
   // ── Assistant placeholder (will be updated in-place via streaming) ────────
   const messages    = document.getElementById("rl-messages");
-  const assistantDiv = document.createElement("div");
-  assistantDiv.classList.add("rl-message", "rl-message-assistant");
+  const { wrapper, div: assistantDiv } = createMessageWrapper("assistant");
+  
   // Blinking cursor while we wait for the first token
   const cursor = document.createElement("span");
   cursor.classList.add("rl-cursor");
   assistantDiv.appendChild(cursor);
-  if (messages) messages.appendChild(assistantDiv);
+  if (messages) messages.appendChild(wrapper);
   scrollToBottom();
 
   let fullText = "";
@@ -742,6 +764,9 @@ async function init() {
 
   // Propagate to inner container for any child components that may need it
   if (container) container.dataset.repoUrl = repoUrl;
+
+  const headerIcon = document.getElementById("rl-header-icon");
+  if (headerIcon) headerIcon.src = chrome.runtime.getURL("icons/icon32.png");
 
   const repoNameEl    = document.getElementById("rl-repo-name");
   const repoDisplayEl = document.getElementById("rl-repo-display");
@@ -1122,13 +1147,11 @@ function updateAutocomplete() {
   const queryTerms = trimmed.toLowerCase().split(/\s+/).filter(t => t.length > 1);
   let matchingQuestions = [];
   
-  if (queryTerms.length === 0) {
-    matchingQuestions = CURIOUS_QUESTIONS;
-  } else {
+  if (queryTerms.length > 0) {
     matchingQuestions = CURIOUS_QUESTIONS.filter(q => {
       const qLower = q.toLowerCase();
-      // Match if all terms are contained in the question
-      return queryTerms.every(term => qLower.includes(term));
+      // Match if at least one term is contained in the question
+      return queryTerms.some(term => qLower.includes(term));
     });
   }
 
@@ -1148,24 +1171,14 @@ function updateAutocomplete() {
       });
       questionsDiv.appendChild(btn);
     });
-  } else {
-    // If no exact match from curious questions, just show a subset of default questions
-    CURIOUS_QUESTIONS.slice(0, 3).forEach(q => {
-      const btn = document.createElement("button");
-      btn.className = "rl-question-item";
-      btn.textContent = q;
-      btn.addEventListener("click", () => {
-        input.value = q;
-        container.classList.add("rl-autocomplete-hidden");
-        input.focus();
-        input.style.height = "";
-        input.style.height = Math.min(input.scrollHeight, 100) + "px";
-      });
-      questionsDiv.appendChild(btn);
-    });
   }
 
-  container.classList.remove("rl-autocomplete-hidden");
+  // Hide container if there are no predictions and no matching questions
+  if (predictions.length === 0 && matchingQuestions.length === 0) {
+    container.classList.add("rl-autocomplete-hidden");
+  } else {
+    container.classList.remove("rl-autocomplete-hidden");
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

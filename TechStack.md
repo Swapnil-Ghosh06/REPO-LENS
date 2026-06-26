@@ -18,10 +18,12 @@ RepoLens splits into two parts: a **browser extension** (Chrome-first, Firefox-c
 | Extension framework | Manifest V3 | Chrome 88+ / Firefox 109+ | Industry standard for both browsers |
 | Firefox compatibility | webextension-polyfill (Mozilla) | latest | Bridges `chrome.*` API to `browser.*` for Firefox |
 | UI framework | Vanilla JS + CSS | — | No React overhead for a panel this size. No build step. |
+| UI patterns | WhatsApp-style chat bubbles, Pill Autocomplete | — | Provides a familiar and non-obstructive chat experience. |
 | Markdown rendering | marked.js | 4.x (vendored) | Renders LLM markdown in the chat, no CDN dependency at runtime |
 | Code highlighting | highlight.js | 11.x (vendored) | Syntax highlights code blocks in answers |
 | Font: UI text | Inter | Google Fonts | Clean, readable, used by Linear, Vercel, Notion |
 | Font: Code + paths | JetBrains Mono | Google Fonts | Professional monospace. Not vibe-coded. |
+| Iconography | Official Extension Icon (`icon32.png`) | — | Used consistently across trigger button, header, and chat avatars. |
 
 **Note on vendored libraries:** Both `marked.js` and `highlight.js` are downloaded and placed in `extension/lib/`. Chrome extensions cannot load from CDNs by default without modifying CSP.
 

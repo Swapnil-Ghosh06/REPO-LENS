@@ -37,7 +37,7 @@ RepoLens is a browser extension that lives on top of GitHub. When you're on any 
 Automatically detects when the user is on a valid GitHub repository page. Activates only on `github.com/{owner}/{repo}` and its sub-paths. Does NOT activate on issues, pulls, settings, actions, wiki, or profile pages.
 
 ### F2 — Floating Trigger Button
-A minimal 40×40px button in the bottom-right corner of GitHub repo pages. One click opens the RepoLens panel. The icon is `</>` — not a chat bubble, not a robot. It looks like a developer tool.
+A minimal 40×40px button in the bottom-right corner of GitHub repo pages. One click opens the RepoLens panel. The icon is the official RepoLens extension logo. It looks like a developer tool.
 
 ### F3 — Sliding Chat Panel
 A 380px-wide panel slides in from the right. It does not cover the main content. It can be dismissed and reopened without losing session state. Dark theme that matches GitHub's dark mode exactly — it feels like a native GitHub feature.
@@ -45,8 +45,11 @@ A 380px-wide panel slides in from the right. It does not cover the main content.
 ### F4 — Repo Indexing with Progress
 First open on a new repo: panel shows repo name, estimated file count, and an "Index Repository" button. On click: a progress bar shows files processed, current file path, and percentage. Backend clones the repo, parses code with tree-sitter, embeds with Gemini, and stores in ChromaDB. Takes 1–3 minutes for a ~200 file repo.
 
-### F5 — RAG-Powered Q&A
-After indexing, users ask free-form questions in natural language. Questions can be architectural ("How does auth work?"), locational ("Where is the DB connection set up?"), or investigative ("What happens when a user submits a form?"). Answers stream in real time like a chat conversation.
+### F5 — RAG-Powered Q&A with Fallback
+After indexing, users ask free-form questions in natural language. Questions can be architectural ("How does auth work?"), locational ("Where is the DB connection set up?"), or investigative ("What happens when a user submits a form?"). Answers stream in real time in WhatsApp-style chat bubbles (with user and assistant avatars). If the codebase does not contain the answer (e.g. asking for general programming knowledge or competitor comparisons), RepoLens can fall back to general knowledge while explicitly stating it is doing so.
+
+### F5.1 — Smart Autocomplete & Suggestions
+As the user types, RepoLens offers intelligent inline word predictions and a horizontal scrolling list of "Curious Questions" (e.g., "Why is it helpful?", "What makes it different?"). These suggestions appear as non-obstructive pill bubbles above the input bar and hide automatically when the input is empty or a sentence is completed, ensuring the chat history is never blocked.
 
 ### F6 — Cited Answers
 Every answer includes file citations as clickable chips: `auth/middleware.py:42`. Clicking opens that exact file on GitHub in a new tab, at the correct line.

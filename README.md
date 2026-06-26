@@ -14,9 +14,14 @@ You're on a GitHub repo. You open RepoLens. You ask a question.
 "How does authentication work?"
 "Where is the database connection set up?"
 "What happens when a user submits a form?"
+"What makes this project different from its competitors?"
 ```
 
-RepoLens indexes the codebase using RAG (Retrieval-Augmented Generation), retrieves the most relevant code chunks, and streams an answer — with citations you can click to jump to the exact file and line on GitHub.
+RepoLens indexes the codebase using RAG (Retrieval-Augmented Generation), retrieves the most relevant code chunks, and streams an answer in a **WhatsApp-style chat interface** complete with avatars. It provides exact file and line citations you can click to jump directly to the code on GitHub.
+
+### 🧠 Smart & Adaptive
+- **Intelligent Autocomplete**: As you type, non-obstructive pill bubbles suggest word completions and "curious questions" to help you ask the right things, without blocking your chat history.
+- **General Knowledge Fallback**: If the repo doesn't contain the answer (e.g., asking for competitor comparisons or general programming concepts), RepoLens intelligently falls back to general knowledge while clearly stating it.
 
 ---
 
@@ -97,10 +102,10 @@ The RepoLens icon will appear in your extensions bar.
 ### 4. Use it
 
 1. Navigate to any public GitHub repository
-2. Click the `</>` button in the bottom-right corner
+2. Click the RepoLens icon button in the bottom-right corner
 3. Click **Index Repository**
 4. Wait 1–3 minutes for indexing
-5. Ask anything
+5. Ask anything, or click one of the suggested "Curious Questions" to get started
 
 ---
 

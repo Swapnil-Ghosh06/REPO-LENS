@@ -59,12 +59,16 @@ Common drift points to watch:
 
 ---
 
+---
+
 ### Rule 4: Reference Design.md for all panel UI.
 
 When generating panel.html, panel.css, or panel.js, the prompt must explicitly reference Design.md. The AI must use:
 - The exact hex color values from the color system table
 - Inter for UI text, JetBrains Mono for code/paths
 - The exact component specs (heights, paddings, border-radius values)
+- WhatsApp-style chat bubbles with profile pictures (avatars).
+- The official `icon32.png` for brand logos. Never use SVG gradients or emojis.
 
 **If the generated CSS deviates from Design.md**, it is wrong. Do not accept it.
 
@@ -103,6 +107,11 @@ except Exception as e:
     job["error"] = f"Crawl failed: {str(e)}"
     return
 ```
+
+---
+
+### Rule 6.1: Allow general knowledge fallback in RAG.
+When constructing the system prompt for the AI in `rag.py`, explicitly instruct it to use its general programming knowledge if the codebase chunks do not contain the answer, provided that it clearly states it is doing so.
 
 ---
 

@@ -52,6 +52,8 @@ uvicorn main:app --reload
    [SCREENSHOT: Progress bar showing repository crawling and embedding status]
 5. Type your question in the chat input and press Enter.
    [SCREENSHOT: Chat interface showing a question about the codebase and the AI's streaming response]
+6. **Smart Autocomplete:** As you type, RepoLens will suggest word completions and "Curious Questions" in horizontal pill bubbles above the input. Clicking one instantly autofills the question. This helps discover features of the codebase faster.
+7. **General Knowledge Fallback:** While RepoLens focuses on the codebase, if you ask a general programming question or for comparisons (e.g., "What makes this project different?"), it will fall back to its general knowledge to help you, clearly noting that it's doing so.
 
 ## 6. What Makes a Good Question
 

@@ -39,7 +39,8 @@
     {
       "resources": [
         "panel/*",
-        "lib/*"
+        "lib/*",
+        "icons/*"
       ],
       "matches": [
         "https://github.com/*"
