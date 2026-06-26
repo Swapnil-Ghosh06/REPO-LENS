@@ -156,6 +156,10 @@ class QueryRequest(BaseModel):
     question: str
 
 
+class CancelRequest(BaseModel):
+    job_id: str
+
+
 # ---------------------------------------------------------------------------
 # Background indexing job
 # ---------------------------------------------------------------------------
@@ -169,7 +173,7 @@ def run_index_job(job_id: str) -> None:
 
         def update_elapsed() -> None:
             last_persist = time.time()
-            while job["status"] not in ("done", "error"):
+            while job["status"] not in ("done", "error", "canceled"):
                 job["elapsed_seconds"] = int(time.time() - start)
                 if time.time() - last_persist >= 10:
                     persist_job(job_id)
@@ -182,29 +186,43 @@ def run_index_job(job_id: str) -> None:
         job["status"] = "cloning"
         persist_job(job_id)
 
-        def file_progress(done: int, total: int, current: str) -> None:
+        def file_progress(done: int, total: int, current: str) -> bool:
+            if job.get("status") == "canceled": return False
             job["files_processed"] = done
             job["total_files"] = total
             job["current_file"] = current
             job["progress"] = int((done / total) * 50) if total > 0 else 0
+            return True
 
         files = crawl_repo(job["repo_url"], progress_callback=file_progress)
+
+        if job.get("status") == "canceled":
+            return
 
         # ── Phase 2: parsing ────────────────────────────────────────────────
         job["status"] = "parsing"
         persist_job(job_id)
         chunks = chunk_files(files)
 
+        if job.get("status") == "canceled":
+            return
+
         # ── Phase 3: embedding + storing (50 → 100 %) ──────────────────────
         job["status"] = "indexing"
         persist_job(job_id)
 
-        def embed_progress(done: int, total: int) -> None:
+        def embed_progress(done: int, total: int) -> bool:
+            if job.get("status") == "canceled": return False
             job["files_processed"] = done
             job["total_files"] = total
             job["progress"] = 50 + int((done / total) * 50) if total > 0 else 50
+            return True
 
         embedded = embed_chunks(chunks, repo_name=job["repo_name"], progress_callback=embed_progress, job_id=job_id)
+        
+        if job.get("status") == "canceled":
+            return
+            
         store_chunks(job["repo_url"], embedded)
 
         job["status"] = "done"
@@ -218,7 +236,22 @@ def run_index_job(job_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# ENDPOINT 1 — POST /index
+# ENDPOINT 1 — POST /cancel
+# ---------------------------------------------------------------------------
+
+@app.post("/cancel")
+async def cancel_job(request: CancelRequest):
+    job = jobs.get(request.job_id)
+    if not job:
+        return {"status": "not_found"}
+    if job["status"] not in ("done", "error", "canceled"):
+        job["status"] = "canceled"
+        job["error"] = "Canceled by user"
+        persist_job(request.job_id)
+    return {"status": "canceled"}
+
+# ---------------------------------------------------------------------------
+# ENDPOINT 2 — POST /index
 # ---------------------------------------------------------------------------
 
 

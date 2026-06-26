@@ -231,7 +231,14 @@
   min-width: 0;
 }
 
-/* Close button — 28×28 tap target */
+#rl-header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Header buttons — 28×28 tap target */
+#rl-minimize,
 #rl-close {
   all: unset;
   width: 28px;
@@ -248,9 +255,14 @@
   border-radius: 4px;
 }
 
-#rl-close:hover {
+#rl-minimize:hover {
   color: var(--text-primary);
   background: var(--bg-hover);
+}
+
+#rl-close:hover {
+  color: #ffffff;
+  background: var(--error);
 }
 
 /* ----------------------------------------------------------------

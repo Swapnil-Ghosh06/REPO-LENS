@@ -27,6 +27,8 @@ let repoUrl = "";
 let repoName = "";
 /** @type {boolean} Prevent concurrent sendQuestion calls */
 let isSending = false;
+/** @type {string|null} Tracks the active indexing job */
+let currentJobId = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STATE MACHINE
@@ -125,18 +127,21 @@ async function fetchFileEstimate(url) {
  * On "done": persists status via background.js, then transitions to READY.
  * On "error": shows error inline, then reverts to NOT_INDEXED after 3 s.
  *
- * @param {string} jobId
+ * @param {string} job_id
  */
-function startPolling(jobId) {
-  const interval = setInterval(async () => {
+function startPolling(job_id) {
+  if (pollInterval) clearInterval(pollInterval);
+  currentJobId = job_id;
+  
+  pollInterval = setInterval(async () => {
     try {
       const r = await fetch(
-        `${BACKEND}/status/${jobId}`,
+        `${BACKEND}/status/${currentJobId}`,
         { signal: AbortSignal.timeout(5000) }
       );
       if (!r.ok) {
         if (r.status === 404) {
-          clearInterval(interval);
+          clearInterval(pollInterval);
           try {
             const indexedResp = await fetch(
               `${BACKEND}/indexed?repo_url=${encodeURIComponent(repoUrl)}`,
@@ -150,7 +155,7 @@ function startPolling(jobId) {
                   repo_url: repoUrl,
                   data: {
                     indexed_at: Date.now() / 1000,
-                    job_id:     jobId,
+                    job_id:     currentJobId,
                     status:     "done",
                   },
                 });
@@ -226,13 +231,13 @@ function startPolling(jobId) {
       // ── Terminal states ────────────────────────────────────────────────────
 
       if (job.status === "done") {
-        clearInterval(interval);
+        clearInterval(pollInterval);
         chrome.runtime.sendMessage({
           type:     "SET_REPO_STATUS",
           repo_url: repoUrl,
           data: {
             indexed_at: Date.now() / 1000,
-            job_id:     jobId,
+            job_id:     currentJobId,
             file_count: job.total_files,
             status:     "done",
           },
@@ -241,10 +246,10 @@ function startPolling(jobId) {
         updateStatusDot("ready");
         showEmptyHint(); // fresh index, chat history is empty
 
-      } else if (job.status === "error") {
-        clearInterval(interval);
+      } else if (job.status === "error" || job.status === "canceled") {
+        clearInterval(pollInterval);
         if (fileEl) {
-          fileEl.textContent  = `Error: ${job.error ?? "Unknown error"}`;
+          fileEl.textContent  = job.status === "canceled" ? "Canceled by user." : `Error: ${job.error ?? "Unknown error"}`;
           fileEl.style.color  = "var(--error)";
         }
         setTimeout(() => {
@@ -685,12 +690,29 @@ async function init() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function bindListeners() {
-  /** Close button — slides the panel off-screen.
+  /** Minimize button — slides the panel off-screen.
    *  The 'open' class is on #rl-panel-container (set by content.js),
    *  NOT on #rl-container (inner panel div).
    */
-  document.getElementById("rl-close")?.addEventListener("click", () => {
+  document.getElementById("rl-minimize")?.addEventListener("click", () => {
     document.getElementById("rl-panel-container")?.classList.remove("open");
+  });
+
+  /** Terminate button — completely stops reading the repo and removes the UI. */
+  document.getElementById("rl-close")?.addEventListener("click", async () => {
+    // If indexing, send cancel request
+    if (currentJobId) {
+       try {
+           await fetch(`${BACKEND}/cancel`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ job_id: currentJobId })
+           });
+       } catch (err) {
+           console.error("[RepoLens] Failed to cancel job:", err);
+       }
+    }
+    window.dispatchEvent(new CustomEvent("rl:terminate-panel"));
   });
 
   /** Copy command button (OFFLINE state) — SVG icon, show checkmark briefly */

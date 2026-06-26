@@ -224,7 +224,8 @@ def crawl_repo(
         if raw_content is None:
             # Both encodings failed — skip silently.
             if progress_callback is not None:
-                progress_callback(idx, total_files, str(file_path))
+                if progress_callback(idx, total_files, str(file_path)) is False:
+                    break
             continue
 
         suffix = file_path.suffix.lower()
@@ -246,6 +247,7 @@ def crawl_repo(
         )
 
         if progress_callback is not None:
-            progress_callback(idx, total_files, str(file_path))
+            if progress_callback(idx, total_files, str(file_path)) is False:
+                break
 
     return results

@@ -125,6 +125,9 @@ function setupPanel(repoUrl) {
 
   const trigger = injectTriggerButton();
   const container = injectPanelContainer(repoUrl);
+  
+  // Reset panelMounted state since we just created a fresh container
+  panelMounted = false;
 
   trigger.addEventListener("click", async () => {
     if (panelMounted) {
@@ -188,4 +191,7 @@ function recheckURL() {
   // GitHub uses Turbo for SPA navigation; also handle manual back/forward
   document.addEventListener("turbo:load", recheckURL);
   window.addEventListener("popstate", recheckURL);
+  
+  // Listen for termination from panel.js
+  window.addEventListener("rl:terminate-panel", teardownPanel);
 })();

@@ -153,7 +153,8 @@ def embed_chunks(chunks: list[dict], repo_name: str, progress_callback=None, job
 
         if progress_callback:
             try:
-                progress_callback(min(end, len(chunks)), len(chunks))
+                if progress_callback(min(end, len(chunks)), len(chunks)) is False:
+                    break
             except Exception as cb_exc:
                 print(f"[WARNING] Progress callback failed: {cb_exc}")
 
