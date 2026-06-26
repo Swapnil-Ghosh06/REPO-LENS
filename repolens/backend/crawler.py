@@ -213,6 +213,12 @@ def crawl_repo(
 
     # Step 2 — collect all candidate files (filtered by extension / dir / size).
     candidates = _collect_candidate_files(local_dir)
+    if len(candidates) > 500:
+        raise ValueError(
+            f"Repository has {len(candidates)} code files, exceeding the "
+            f"500-file limit. RepoLens is designed for focused repositories. "
+            f"Consider indexing a specific subdirectory instead."
+        )
     total_files = len(candidates)
 
     # Step 3 — read each file and build result dicts.

@@ -61,6 +61,45 @@ function injectPanelContainer(repoUrl) {
   const container = document.createElement("div");
   container.id = "rl-panel-container";
   container.setAttribute("data-repo-url", repoUrl);
+  
+  // Inject resize handle
+  const resizer = document.createElement("div");
+  resizer.id = "rl-resize-handle";
+  resizer.style.position = "absolute";
+  resizer.style.left = "0";
+  resizer.style.top = "0";
+  resizer.style.bottom = "0";
+  resizer.style.width = "8px";
+  resizer.style.cursor = "col-resize";
+  resizer.style.zIndex = "10";
+  
+  let isResizing = false;
+  let startX = 0;
+  let startWidth = 0;
+
+  resizer.addEventListener("mousedown", (e) => {
+    isResizing = true;
+    startX = e.clientX;
+    startWidth = parseInt(window.getComputedStyle(container).width, 10) || 380;
+    document.body.style.userSelect = "none";
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!isResizing) return;
+    const newWidth = startWidth + (startX - e.clientX);
+    if (newWidth >= 300 && newWidth <= 1200) {
+      container.style.width = newWidth + "px";
+    }
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (isResizing) {
+      isResizing = false;
+      document.body.style.userSelect = "";
+    }
+  });
+
+  container.appendChild(resizer);
   document.body.appendChild(container);
   return container;
 }

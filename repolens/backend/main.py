@@ -229,6 +229,11 @@ def run_index_job(job_id: str) -> None:
         job["progress"] = 100
         persist_job(job_id)
 
+    except ValueError as ve:
+        job["status"] = "error"
+        job["error"] = str(ve)
+        job["error_type"] = "too_large"
+        persist_job(job_id)
     except Exception as exc:
         job["status"] = "error"
         job["error"] = str(exc)

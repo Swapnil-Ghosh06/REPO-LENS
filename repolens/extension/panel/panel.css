@@ -152,9 +152,9 @@
 
   /* Typography defaults (overridden per-element where needed) */
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: 15px;
   color: var(--text-primary);
-  line-height: 1.5;
+  line-height: 1.6;
   box-sizing: border-box;
   overflow: hidden; /* clip child elements to the rounded border-radius */
 }
@@ -204,31 +204,12 @@
 
 #rl-header-label {
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-/* Separator between label and repo name */
-#rl-header-sep {
-  color: var(--text-muted);
-  font-size: 12px;
-  flex-shrink: 0;
-}
-
-#rl-repo-name {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 400;
+  letter-spacing: 0.02em;
   color: var(--text-primary);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
+  flex-shrink: 0;
 }
 
 #rl-header-right {
@@ -239,7 +220,8 @@
 
 /* Header buttons — 28×28 tap target */
 #rl-minimize,
-#rl-close {
+#rl-close,
+#rl-help-btn {
   all: unset;
   width: 28px;
   height: 28px;
@@ -255,7 +237,8 @@
   border-radius: 4px;
 }
 
-#rl-minimize:hover {
+#rl-minimize:hover,
+#rl-help-btn:hover {
   color: var(--text-primary);
   background: var(--bg-hover);
 }
@@ -378,34 +361,39 @@
   flex: 0 0 auto;
 }
 
-/* Subtle monospace ASCII art icon block */
-.rl-ascii-icon {
-  all: unset;
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1.4;
-  color: var(--text-muted);
-  white-space: pre;
-  letter-spacing: 0;
-  margin-bottom: 2px;
+/* Repo Card styling */
+.rl-repo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  margin-bottom: 8px;
 }
 
-/* Repo name: accent color, monospace */
+.rl-repo-card-icon {
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
 #rl-repo-display {
   all: unset;
   display: block;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  word-break: break-all;
 }
 
 #rl-not-indexed-desc {
   all: unset;
   display: block;
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-secondary);
   line-height: 1.5;
 }
@@ -414,8 +402,9 @@
   all: unset;
   display: block;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
+  margin-top: 4px;
 }
 
 /* Subtle divider before button */
@@ -433,17 +422,18 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  height: 34px;
-  padding: 0 14px;
+  height: 40px;
+  padding: 0 16px;
   background: #238636;
   border: 1px solid rgba(240, 246, 252, 0.1);
   color: #ffffff;
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  line-height: 34px;
-  border-radius: 4px;
+  line-height: 40px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
 }
 
 #rl-index-btn:hover {
@@ -810,9 +800,8 @@
 }
 
 .rl-empty-hint ul {
-  margin: 4px 0 8px 16px;
-  padding: 0;
-  list-style-type: disc;
+  padding-left: 20px;
+  margin: 0;
 }
 
 .rl-empty-hint li {

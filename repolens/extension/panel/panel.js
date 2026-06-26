@@ -29,6 +29,8 @@ let repoName = "";
 let isSending = false;
 /** @type {string|null} Tracks the active indexing job */
 let currentJobId = null;
+/** @type {string|null} Tracks the previous state before opening help */
+let prevState = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STATE MACHINE
@@ -39,6 +41,7 @@ const STATE_IDS = {
   NOT_INDEXED: "state-not-indexed",
   INDEXING:    "state-indexing",
   READY:       "state-ready",
+  HELP:        "state-help",
 };
 
 /**
@@ -249,7 +252,13 @@ function startPolling(job_id) {
       } else if (job.status === "error" || job.status === "canceled") {
         clearInterval(pollInterval);
         if (fileEl) {
-          fileEl.textContent  = job.status === "canceled" ? "Canceled by user." : `Error: ${job.error ?? "Unknown error"}`;
+          if (job.status === "canceled") {
+            fileEl.textContent = "Canceled by user.";
+          } else if (job.error_type === "too_large") {
+            fileEl.textContent = "This repo has too many files for RepoLens v1 (500 file limit). Try a smaller or more focused repository.";
+          } else {
+            fileEl.textContent = `Error: ${job.error ?? "Unknown error"}`;
+          }
           fileEl.style.color  = "var(--error)";
         }
         setTimeout(() => {
@@ -713,6 +722,22 @@ function bindListeners() {
        }
     }
     window.dispatchEvent(new CustomEvent("rl:terminate-panel"));
+  });
+
+  /** Help button */
+  document.getElementById("rl-help-btn")?.addEventListener("click", () => {
+    // Find current active state by iterating over STATE_IDS
+    const activeKey = Object.keys(STATE_IDS).find(k => {
+      const el = document.getElementById(STATE_IDS[k]);
+      return el && el.classList.contains("active");
+    });
+    prevState = activeKey || "READY";
+    showState("HELP");
+  });
+
+  /** Help back button */
+  document.getElementById("rl-help-back")?.addEventListener("click", () => {
+    showState(prevState || "READY");
   });
 
   /** Copy command button (OFFLINE state) — SVG icon, show checkmark briefly */
