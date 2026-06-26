@@ -96,6 +96,30 @@ function scrollToBottom() {
   if (m) m.scrollTop = m.scrollHeight;
 }
 
+function showStaleIndexWarning(diffCount) {
+  const messages = document.getElementById("rl-messages");
+  if (!messages) return;
+  if (messages.querySelector(".rl-message-system")) return;
+
+  const bubble = document.createElement("div");
+  bubble.className = "rl-message-system";
+  
+  const plural = diffCount === 1 ? "commit has" : "commits have";
+  bubble.innerHTML = `
+    <span>🚨 <strong>${diffCount} new ${plural}</strong> been pushed since your last index. Your chat context is outdated.</span>
+    <button class="rl-system-action-btn">Re-index Now</button>
+  `;
+  
+  bubble.querySelector("button").addEventListener("click", () => {
+    bubble.remove();
+    showState("NOT_INDEXED");
+    document.getElementById("rl-index-btn")?.click();
+  });
+
+  messages.appendChild(bubble);
+  scrollToBottom();
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // FILE ESTIMATE (GitHub API)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -163,6 +187,7 @@ function startPolling(job_id) {
                     indexed_at: Date.now() / 1000,
                     job_id:     currentJobId,
                     status:     "done",
+                    commit_sha: window._pendingCommitSha || undefined,
                   },
                 });
                 showState("READY");
@@ -260,6 +285,7 @@ function startPolling(job_id) {
               job_id:     currentJobId,
               file_count: job.total_files,
               status:     "done",
+              commit_sha: window._pendingCommitSha || undefined,
             },
           });
         } catch (err) {
@@ -724,13 +750,34 @@ async function checkBackendAndRoute() {
   // ── Check storage for prior index ───────────────────────────────────────────
   chrome.runtime.sendMessage(
     { type: "GET_REPO_STATUS", repo_url: repoUrl },
-    (entry) => {
+    async (entry) => {
       if (entry && entry.status === "done") {
         const age = Date.now() / 1000 - (entry.indexed_at ?? 0);
         if (age < INDEX_CACHE_TTL) {
           showState("READY");
           updateStatusDot("ready");
           loadChatHistory();
+          
+          if (entry.commit_sha) {
+            try {
+              const [owner, repo] = repoUrl.replace("https://github.com/", "").split("/");
+              const liveRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits?per_page=1`, { signal: AbortSignal.timeout(5000) });
+              if (liveRes.ok) {
+                const liveCommits = await liveRes.json();
+                if (liveCommits && liveCommits.length > 0) {
+                  const liveSha = liveCommits[0].sha;
+                  if (liveSha !== entry.commit_sha) {
+                    const cmpRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/compare/${entry.commit_sha}...${liveSha}`, { signal: AbortSignal.timeout(5000) });
+                    if (cmpRes.ok) {
+                      const cmpData = await cmpRes.json();
+                      const diffCount = cmpData.total_commits || 0;
+                      if (diffCount > 0) showStaleIndexWarning(diffCount);
+                    }
+                  }
+                }
+              }
+            } catch(e) { /* ignore */ }
+          }
           return;
         }
       }
@@ -875,6 +922,15 @@ function bindListeners() {
       descEl.textContent = "This repository hasn't been indexed yet.";
       descEl.style.color = "";
     }
+
+    try {
+      const [owner, repo] = repoUrl.replace("https://github.com/", "").split("/");
+      const shaRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits?per_page=1`, { signal: AbortSignal.timeout(5000) });
+      if (shaRes.ok) {
+        const commits = await shaRes.json();
+        if (commits && commits.length > 0) window._pendingCommitSha = commits[0].sha;
+      }
+    } catch(e) {}
 
     try {
       const r = await fetch(`${BACKEND}/index`, {

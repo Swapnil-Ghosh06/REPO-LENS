@@ -1405,3 +1405,50 @@
   margin: 0;
   border-bottom-left-radius: 4px;
 }
+
+/* ── System Alert Bubble (e.g. Stale Index) ── */
+.rl-message-system {
+  align-self: center;
+  background: rgba(45, 55, 72, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--border-muted);
+  border-radius: 12px;
+  padding: 8px 16px;
+  margin: 12px 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 90%;
+  animation: fadeIn 0.3s ease forwards;
+}
+
+.rl-message-system strong {
+  color: var(--warning);
+}
+
+.rl-system-action-btn {
+  all: unset;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rl-system-action-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent-hover);
+}

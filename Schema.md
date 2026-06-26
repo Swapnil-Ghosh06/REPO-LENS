@@ -240,6 +240,7 @@ interface LocalStorage {
       job_id: string;
       file_count: number;
       status: "done" | "error";
+      commit_sha?: string;      // GitHub commit hash when indexed
     }
   }
   repo_metadata: {
