@@ -854,6 +854,12 @@ async function init() {
 
   // ── 4. Bind all DOM event listeners (called only once on mount) ─────────────
   bindListeners();
+  
+  // ── 5. Make the panel draggable by its header ─────────────────────────────
+  setupDraggable();
+
+  // ── 6. Make the panel resizable from all edges ────────────────────────────
+  setupResizable();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1300,4 +1306,132 @@ function showRateLimitBanner(userMessage) {
   if (container) {
     container.appendChild(banner);
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DRAG LOGIC
+// ─────────────────────────────────────────────────────────────────────────────
+
+function setupDraggable() {
+  const container = document.getElementById("rl-panel-container");
+  const header = document.getElementById("rl-header");
+  if (!container || !header) return;
+
+  let isDragging = false;
+  let startX, startY, initialLeft, initialTop;
+
+  header.addEventListener("mousedown", (e) => {
+    // Prevent dragging if clicking a button (like minimize/close)
+    if (e.target.tagName === "BUTTON" || e.target.closest("button") || e.target.tagName === "A") {
+      return;
+    }
+    
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    
+    const rect = container.getBoundingClientRect();
+    initialLeft = rect.left;
+    initialTop = rect.top;
+
+    // Reset right positioning so left positioning works correctly during drag
+    container.style.right = "auto";
+    container.style.bottom = "auto";
+    container.style.left = initialLeft + "px";
+    container.style.top = initialTop + "px";
+    
+    e.preventDefault(); // Prevent text selection
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    
+    container.style.left = (initialLeft + dx) + "px";
+    container.style.top = (initialTop + dy) + "px";
+  });
+
+  window.addEventListener("mouseup", () => {
+    if (isDragging) {
+      isDragging = false;
+    }
+  });
+}
+
+function setupResizable() {
+  const container = document.getElementById("rl-panel-container");
+  const innerContainer = document.getElementById("rl-container");
+  if (!container || !innerContainer) return;
+
+  const positions = ['t', 'b', 'l', 'r', 'tl', 'tr', 'bl', 'br'];
+  
+  positions.forEach(pos => {
+    const handle = document.createElement("div");
+    handle.className = `rl-resizer rl-resizer-${pos}`;
+    container.appendChild(handle);
+
+    handle.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const rect = innerContainer.getBoundingClientRect();
+      const startWidth = rect.width;
+      const startHeight = rect.height;
+      const containerRect = container.getBoundingClientRect();
+      const startLeft = containerRect.left;
+      const startTop = containerRect.top;
+
+      // To avoid CSS right/bottom conflicts
+      container.style.right = "auto";
+      container.style.bottom = "auto";
+      container.style.left = startLeft + "px";
+      container.style.top = startTop + "px";
+
+      function onMouseMove(moveEvent) {
+        let newWidth = startWidth;
+        let newHeight = startHeight;
+        let newLeft = startLeft;
+        let newTop = startTop;
+
+        const dx = moveEvent.clientX - startX;
+        const dy = moveEvent.clientY - startY;
+
+        if (pos.includes('r')) {
+          newWidth = startWidth + dx;
+        }
+        if (pos.includes('l')) {
+          newWidth = startWidth - dx;
+          newLeft = startLeft + dx;
+        }
+        if (pos.includes('b')) {
+          newHeight = startHeight + dy;
+        }
+        if (pos.includes('t')) {
+          newHeight = startHeight - dy;
+          newTop = startTop + dy;
+        }
+
+        // Apply min widths and heights based on CSS
+        if (newWidth >= 320) {
+          innerContainer.style.width = newWidth + "px";
+          container.style.left = newLeft + "px";
+        }
+        if (newHeight >= 400) {
+          innerContainer.style.height = newHeight + "px";
+          container.style.top = newTop + "px";
+        }
+      }
+
+      function onMouseUp() {
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+      }
+
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+    });
+  });
 }
