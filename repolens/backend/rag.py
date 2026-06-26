@@ -141,8 +141,9 @@ def stream_answer(
         try:
             provider = get_provider(repo_url)
             query_vec = embed_query(question, provider=provider)
-        except RuntimeError as e:
-            if "GEMINI_RATE_LIMIT" in str(e):
+        except Exception as e:
+            err_str = str(e).upper()
+            if "GEMINI_RATE_LIMIT" in err_str or "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
                 msg = json.dumps({
                     "message": "rate_limit",
                     "user_message": "Embedding rate limit reached. Please wait a minute and try again."
@@ -151,8 +152,8 @@ def stream_answer(
                 return
             raise
 
-        # Step 3: retrieve top-8 chunks
-        results = query_chunks(repo_url, query_vec, top_k=8)
+        # Step 3: retrieve top-5 chunks
+        results = query_chunks(repo_url, query_vec, top_k=5)
 
         # Step 4: build shared prompt pieces
         system_prompt = _build_system_prompt(repo_name, len(results))
