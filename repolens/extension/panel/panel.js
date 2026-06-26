@@ -96,7 +96,7 @@ function scrollToBottom() {
   if (m) m.scrollTop = m.scrollHeight;
 }
 
-function showStaleIndexWarning(diffCount) {
+function showStaleIndexWarning(diffCount, isLegacy = false) {
   const messages = document.getElementById("rl-messages");
   if (!messages) return;
   if (messages.querySelector(".rl-message-system")) return;
@@ -104,11 +104,18 @@ function showStaleIndexWarning(diffCount) {
   const bubble = document.createElement("div");
   bubble.className = "rl-message-system";
   
-  const plural = diffCount === 1 ? "commit has" : "commits have";
-  bubble.innerHTML = `
-    <span>🚨 <strong>${diffCount} new ${plural}</strong> been pushed since your last index. Your chat context is outdated.</span>
-    <button class="rl-system-action-btn">Re-index Now</button>
-  `;
+  if (isLegacy) {
+    bubble.innerHTML = `
+      <span>🚨 <strong>Tracking Enabled!</strong> Your current index is from an older version. Please re-index to enable stale cache detection.</span>
+      <button class="rl-system-action-btn">Re-index Now</button>
+    `;
+  } else {
+    const plural = diffCount === 1 ? "commit has" : "commits have";
+    bubble.innerHTML = `
+      <span>🚨 <strong>${diffCount} new ${plural}</strong> been pushed since your last index. Your chat context is outdated.</span>
+      <button class="rl-system-action-btn">Re-index Now</button>
+    `;
+  }
   
   bubble.querySelector("button").addEventListener("click", () => {
     bubble.remove();
@@ -510,22 +517,25 @@ function showEmptyHint() {
 }
 
 function loadChatHistory() {
-  chrome.runtime.sendMessage(
-    { type: "GET_CHAT_HISTORY", key: `chat_${repoUrl}` },
-    (messages) => {
-      const msgs = messages || [];
-      if (msgs.length === 0) {
-        showEmptyHint();
-      } else {
-        const msgContainer = document.getElementById("rl-messages");
-        if (msgContainer) msgContainer.innerHTML = "";
-        msgs.forEach((msg) =>
-          appendMessage(msg.role, msg.content, msg.sources)
-        );
-        scrollToBottom();
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(
+      { type: "GET_CHAT_HISTORY", key: `chat_${repoUrl}` },
+      (messages) => {
+        const msgs = messages || [];
+        if (msgs.length === 0) {
+          showEmptyHint();
+        } else {
+          const msgContainer = document.getElementById("rl-messages");
+          if (msgContainer) msgContainer.innerHTML = "";
+          msgs.forEach((msg) =>
+            appendMessage(msg.role, msg.content, msg.sources)
+          );
+          scrollToBottom();
+        }
+        resolve();
       }
-    }
-  );
+    );
+  });
 }
 
 function saveToHistory(url, question, answer, sources) {
@@ -756,27 +766,46 @@ async function checkBackendAndRoute() {
         if (age < INDEX_CACHE_TTL) {
           showState("READY");
           updateStatusDot("ready");
-          loadChatHistory();
+          await loadChatHistory();
           
+          if (!entry.commit_sha) {
+            console.warn("[RepoLens] Legacy index detected (no commit_sha). Prompting user to re-index.");
+            showStaleIndexWarning(0, true);
+            return;
+          }
+
           if (entry.commit_sha) {
             try {
               const [owner, repo] = repoUrl.replace("https://github.com/", "").split("/");
+              console.log(`[RepoLens] Checking for stale index. Stored SHA: ${entry.commit_sha}`);
+              
               const liveRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits?per_page=1`, { signal: AbortSignal.timeout(5000) });
               if (liveRes.ok) {
                 const liveCommits = await liveRes.json();
                 if (liveCommits && liveCommits.length > 0) {
                   const liveSha = liveCommits[0].sha;
+                  console.log(`[RepoLens] Live SHA: ${liveSha}`);
+                  
                   if (liveSha !== entry.commit_sha) {
                     const cmpRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/compare/${entry.commit_sha}...${liveSha}`, { signal: AbortSignal.timeout(5000) });
                     if (cmpRes.ok) {
                       const cmpData = await cmpRes.json();
                       const diffCount = cmpData.total_commits || 0;
+                      console.log(`[RepoLens] Index is stale by ${diffCount} commits.`);
                       if (diffCount > 0) showStaleIndexWarning(diffCount);
+                    } else {
+                      console.warn(`[RepoLens] Compare API failed: ${cmpRes.status}`);
                     }
+                  } else {
+                    console.log("[RepoLens] Index is up to date.");
                   }
                 }
+              } else {
+                console.warn(`[RepoLens] Commits API failed: ${liveRes.status} (Rate limited?)`);
               }
-            } catch(e) { /* ignore */ }
+            } catch(e) { 
+              console.error("[RepoLens] Failed to check for stale index:", e);
+            }
           }
           return;
         }
