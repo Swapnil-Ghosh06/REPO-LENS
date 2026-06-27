@@ -58,7 +58,12 @@ async function crawlRepo(repoUrl, progressCallback) {
 
   // 1-2. Get file tree
   const treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`, { headers });
-  if (!treeRes.ok) throw new Error(`GitHub API error: ${treeRes.status}`);
+  if (!treeRes.ok) {
+    if (treeRes.status === 404) {
+      throw new Error("GitHub API 404: Repository not found. If this is a private repository, you need to configure a GITHUB_TOKEN. Also ensure the repo is not entirely empty.");
+    }
+    throw new Error(`GitHub API error: ${treeRes.status}`);
+  }
   const treeData = await treeRes.json();
 
   // 3-4. Filter files
@@ -273,12 +278,9 @@ async function embedChunks(chunks, repoName, progressCallback) {
   try {
     return await _embedChunksGemini(chunks, repoName, progressCallback);
   } catch (e) {
-    if (e.message.includes("GEMINI_RATE_LIMIT")) {
-      console.warn('[PLAN B] Gemini exhausted. Switching to Cohere...');
-      killGeminiFor60Min();
-      return await _embedChunksCohere(chunks, repoName, progressCallback);
-    }
-    throw e;
+    console.warn(`[PLAN B] Gemini failed (${e.message}). Switching to Cohere...`);
+    killGeminiFor60Min();
+    return await _embedChunksCohere(chunks, repoName, progressCallback);
   }
 }
 
@@ -296,8 +298,10 @@ async function embedQuery(question, provider) {
     const vecs = await embedWithGemini([question], "RETRIEVAL_QUERY");
     return vecs[0];
   } catch (e) {
-    if (e.message.includes("GEMINI_RATE_LIMIT")) throw e;
-    throw e;
+    console.warn(`[PLAN B] Gemini failed for query (${e.message}). Switching to Cohere...`);
+    killGeminiFor60Min();
+    const vecs = await embedWithCohere([question], "search_query");
+    return vecs[0];
   }
 }
 
