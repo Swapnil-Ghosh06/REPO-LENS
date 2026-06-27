@@ -60,7 +60,7 @@ async function crawlRepo(repoUrl, progressCallback) {
   const treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`, { headers });
   if (!treeRes.ok) {
     if (treeRes.status === 404) {
-      throw new Error("GitHub API 404: Repository not found. If this is a private repository, you need to configure a GITHUB_TOKEN. Also ensure the repo is not entirely empty.");
+      throw new Error("Repo: Private (Please configure GITHUB_TOKEN to index)");
     }
     throw new Error(`GitHub API error: ${treeRes.status}`);
   }
