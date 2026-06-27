@@ -39,7 +39,7 @@ function cosineSimilarity(vecA, vecB) {
 
 // ─── PART 3 — GITHUB CRAWLER ──────────────────────────────────────────────────
 const SUPPORTED_EXTENSIONS = [".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".go", ".rs", ".cpp", ".c", ".cs", ".rb", ".php", ".swift", ".kt", ".md"];
-const SKIP_DIRS = ["node_modules", ".git", "dist", "build", "__pycache__", ".venv", "venv", ".next", "out", "vendor", ".idea", ".vscode", "coverage", "target"];
+const SKIP_DIRS = ["node_modules", ".git", "dist", "build", "__pycache__", ".venv", "venv", ".next", "out", "vendor", ".idea", ".vscode", "coverage", "target", "tests", "test", "__tests__", "spec", "docs"];
 const LANGUAGE_MAP = {
   ".py": "python", ".js": "javascript", ".ts": "typescript", ".jsx": "javascript", ".tsx": "typescript",
   ".java": "java", ".go": "go", ".rs": "rust", ".cpp": "cpp", ".c": "c", ".cs": "csharp",
@@ -72,12 +72,15 @@ async function crawlRepo(repoUrl, progressCallback) {
     const extMatch = item.path.match(/\.[^.]+$/);
     if (!extMatch) return false;
     if (!SUPPORTED_EXTENSIONS.includes(extMatch[0])) return false;
+    
+    const lowerPath = item.path.toLowerCase();
+    if (lowerPath.includes(".test.") || lowerPath.includes(".spec.") || lowerPath.includes(".min.")) return false;
 
     return true;
   });
 
-  // 5. Cap at 500
-  if (validFiles.length > 500) {
+  // 5. Cap at 800
+  if (validFiles.length > 800) {
     const err = new Error("Too many files");
     err.type = "too_large"; // used by UI
     throw err;

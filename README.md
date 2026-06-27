@@ -239,7 +239,7 @@ Please read [Rules.md](./Rules.md) before contributing to understand the coding 
 ## ⚠️ Limitations
 
 - **Public repos only** — GitHub's raw API is used to fetch file content. Private repos require a GitHub Personal Access Token stored in `chrome.storage.local`.
-- **500 file cap** — Repositories with more than 500 supported code files are rejected to prevent runaway API costs.
+- **800 file cap** — Repositories with more than 800 supported code files (after stripping out tests, minified files, and docs) are rejected to prevent runaway API costs and index bloat.
 - **Rate limits** — The free tiers of Gemini, Groq, and Cohere have rate limits. The multi-provider fallback chain handles this gracefully, but very large repos may slow down during indexing.
 - **Index freshness** — The index is stored in `chrome.storage.local` and expires after 7 days. The extension will automatically warn you when the live repo is ahead of your indexed commit.
 
