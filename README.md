@@ -9,7 +9,6 @@
   [![Cloudflare Workers](https://img.shields.io/badge/Proxy-Cloudflare_Workers-F38020.svg?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
   [![Gemini](https://img.shields.io/badge/Embeddings-Gemini_text--embedding--004-4285F4.svg?logo=google&logoColor=white)](https://aistudio.google.com/)
   [![Groq](https://img.shields.io/badge/LLM-Groq_Llama_3.3_70B-F55036.svg?logo=meta&logoColor=white)](https://groq.com/)
-  [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
   *A zero-setup, fully serverless RAG extension that turns any GitHub repository into an interactive AI chat — right inside your browser.*
 
