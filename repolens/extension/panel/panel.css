@@ -111,7 +111,10 @@
 }
 
 #rl-trigger-dot.dot-offline  { background: #f85149; }
-#rl-trigger-dot.dot-indexing { background: #d29922; }
+#rl-trigger-dot.dot-indexing { 
+  background: #d29922; 
+  animation: blink 0.8s step-end infinite; 
+}
 #rl-trigger-dot.dot-ready    { background: #3fb950; }
 
 /* ----------------------------------------------------------------
@@ -125,7 +128,7 @@
   z-index: 999999;
 
   /* Slide animation — panel starts off-screen right with safety margin */
-  transform: translateX(calc(100% + 40px));
+  transform: translateX(450px);
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 
   /* No visual styling here — that's on #rl-container */

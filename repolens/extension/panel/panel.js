@@ -82,7 +82,9 @@ function updateStatusDot(state) {
 
   const triggerDot = document.getElementById("rl-trigger-dot");
   if (triggerDot) {
-    triggerDot.style.background = DOT_COLORS[state] ?? DOT_COLORS.idle;
+    triggerDot.style.background = ""; // clear inline style
+    triggerDot.classList.remove("dot-idle", "dot-indexing", "dot-ready", "dot-offline");
+    triggerDot.classList.add(`dot-${state}`);
   }
 }
 
@@ -793,10 +795,12 @@ function bindListeners() {
   document.getElementById("rl-close")?.addEventListener("click", async () => {
     // If indexing, send cancel request
     if (currentJobId) {
+       const confirmed = window.confirm("Indexing is in progress. Are you sure you want to cancel and close?");
+       if (!confirmed) return;
        chrome.runtime.sendMessage({ type: "CANCEL_JOB", job_id: currentJobId });
     }
-    // Just minimize instead of terminating
-    document.getElementById("rl-panel-container")?.classList.remove("open");
+    // Fully terminate the panel and remove from DOM
+    window.dispatchEvent(new CustomEvent("rl:terminate-panel"));
   });
 
   /** Help toggle button */
