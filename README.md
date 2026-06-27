@@ -44,7 +44,7 @@ No cloning. No setup. No IDE switching. Just open any GitHub repo, click **Index
 
 ## 🏗️ Architecture
 
-RepoLens is **100% serverless**. There is no local backend to run. The extension talks directly to a Cloudflare Worker proxy which securely holds the API keys and routes requests to the AI providers.
+RepoLens is **100% serverless**. There is no local backend to run.. The extension talks directly to a Cloudflare Worker proxy which securely holds the API keys and routes requests to the AI providers.
 
 ```text
                   ┌───────────────────────────────────┐
