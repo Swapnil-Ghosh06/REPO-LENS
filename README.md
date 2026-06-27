@@ -110,7 +110,7 @@ Go to the [Releases](https://github.com/Swapnil-Ghosh06/REPO-LENS/releases) page
 2. Open Chrome and navigate to **`chrome://extensions`**
 3. Toggle **Developer mode** on (top-right corner).
 4. Click **Load unpacked**.
-5. Select the `extension` folder from the unzipped contents.
+5. Select the `extension` folder from the unzipped contents..
 
 ### Step 3: Use It
 1. Go to any public GitHub repository.
