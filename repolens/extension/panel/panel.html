@@ -81,24 +81,6 @@
     </button>
   </div>
 
-  <!-- STATE: OFFLINE -->
-  <div id="state-offline" class="rl-state">
-    <span id="rl-offline-icon" aria-hidden="true">⚠</span>
-    <h2 id="rl-offline-heading">Backend not running</h2>
-    <p id="rl-offline-body">Start the RepoLens backend to use this extension.</p>
-    <div id="rl-offline-code-block">
-      <!-- Terminal prompt prefix -->
-      <span class="rl-term-prefix" aria-hidden="true">$</span>
-      <code id="rl-offline-cmd">uvicorn main:app --reload</code>
-      <!-- Copy button: clipboard SVG icon -->
-      <button id="rl-copy-cmd" title="Copy command" aria-label="Copy command to clipboard">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-      </button>
-    </div>
-  </div>
 
   <!-- STATE: NOT INDEXED -->
   <div id="state-not-indexed" class="rl-state">
@@ -149,6 +131,7 @@
       <button id="rl-map-btn" title="Generate a repository map">Map</button>
     </div>
   </div>
+
 
   <!-- ============================================================
        INPUT BAR — only visible when state-ready is active

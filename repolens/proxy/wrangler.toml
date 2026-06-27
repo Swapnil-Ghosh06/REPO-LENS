@@ -1,0 +1,12 @@
+name = "repolens-proxy"
+main = "src/index.js"
+compatibility_date = "2024-03-20"
+
+# Note: The API keys below should not be populated here in GitHub.
+# Use `npx wrangler secret put <KEY_NAME>` to store them securely in the Cloudflare Dashboard.
+# 
+# Required secrets:
+# GEMINI_API_KEY
+# GROQ_API_KEY
+# GROQ_API_KEY_2
+# COHERE_API_KEY

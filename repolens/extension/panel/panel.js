@@ -41,7 +41,6 @@ let offlineRetryCleanup = null;
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STATE_IDS = {
-  OFFLINE:     "state-offline",
   NOT_INDEXED: "state-not-indexed",
   INDEXING:    "state-indexing",
   READY:       "state-ready",
@@ -172,65 +171,27 @@ function startPolling(job_id) {
   
   pollInterval = setInterval(async () => {
     try {
-      const r = await fetch(
-        `${BACKEND}/status/${currentJobId}`,
-        { signal: AbortSignal.timeout(5000) }
+      const job = await new Promise(resolve =>
+        chrome.runtime.sendMessage({ type: "GET_JOB_STATUS", job_id: currentJobId }, resolve)
       );
-      if (!r.ok) {
-        if (r.status === 404) {
+      
+      if (!job) {
+        // Job not found — check if already indexed
+        const indexed = await new Promise(resolve =>
+          chrome.runtime.sendMessage({ type: "IS_INDEXED", repo_url: repoUrl }, resolve)
+        );
+        if (indexed?.indexed) {
           clearInterval(pollInterval);
-          try {
-            const indexedResp = await fetch(
-              `${BACKEND}/indexed?repo_url=${encodeURIComponent(repoUrl)}`,
-              { signal: AbortSignal.timeout(5000) }
-            );
-            if (indexedResp.ok) {
-              const data = await indexedResp.json();
-              if (data.indexed) {
-                chrome.runtime.sendMessage({
-                  type:     "SET_REPO_STATUS",
-                  repo_url: repoUrl,
-                  data: {
-                    indexed_at: Date.now() / 1000,
-                    job_id:     currentJobId,
-                    status:     "done",
-                    commit_sha: window._pendingCommitSha || undefined,
-                  },
-                });
-                showState("READY");
-                updateStatusDot("ready");
-              } else {
-                showState("NOT_INDEXED");
-                updateStatusDot("idle");
-                const descEl = document.getElementById("rl-not-indexed-desc");
-                if (descEl) {
-                  descEl.textContent = "Server was restarted. Please re-index.";
-                  descEl.style.color = "var(--error)";
-                }
-              }
-            } else {
-              showState("NOT_INDEXED");
-              updateStatusDot("idle");
-              const descEl = document.getElementById("rl-not-indexed-desc");
-              if (descEl) {
-                descEl.textContent = "Server was restarted. Please re-index.";
-                descEl.style.color = "var(--error)";
-              }
-            }
-          } catch {
-            showState("NOT_INDEXED");
-            updateStatusDot("idle");
-            const descEl = document.getElementById("rl-not-indexed-desc");
-            if (descEl) {
-              descEl.textContent = "Server was restarted. Please re-index.";
-              descEl.style.color = "var(--error)";
-            }
-          }
+          chrome.runtime.sendMessage({
+            type: "SET_REPO_STATUS",
+            repo_url: repoUrl,
+            data: { indexed_at: Date.now() / 1000, status: "done", commit_sha: window._pendingCommitSha || undefined }
+          });
+          showState("READY");
+          updateStatusDot("ready");
         }
         return;
       }
-
-      const job = await r.json();
 
       // Update indexing label dynamically based on phase
       const labelEl = document.getElementById("rl-indexing-label");
@@ -608,89 +569,50 @@ async function sendQuestion(question) {
   let sources  = [];
 
   try {
-    const response = await fetch(`${BACKEND}/query`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ repo_url: repoUrl, question }),
-      signal:  AbortSignal.timeout(60000),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const result = await new Promise(resolve =>
+      chrome.runtime.sendMessage({ type: "RAG_QUERY", repo_url: repoUrl, question }, resolve)
+    );
+    
+    if (!result || !result.events) {
+      throw new Error("No response from background worker");
     }
 
-    // ── SSE ReadableStream parsing ─────────────────────────────────────────
-    const reader  = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer    = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      // SSE events are separated by double newline
-      const events = buffer.split("\n\n");
-      buffer = events.pop(); // keep the last incomplete chunk
-
-      for (const event of events) {
-        const trimmed   = event.trim();
-        if (!trimmed) continue;
-
-        const lines     = trimmed.split("\n");
-        const eventType = lines
-          .find((l) => l.startsWith("event:"))
-          ?.replace("event:", "")
-          .trim();
-        const dataLine  = lines
-          .find((l) => l.startsWith("data:"))
-          ?.replace("data:", "")
-          .trim();
-
-        if (!dataLine) continue;
-
-        let data;
-        try {
-          data = JSON.parse(dataLine);
-        } catch {
-          continue; // malformed JSON — skip this event
+    for (const event of result.events) {
+      const trimmed = event.trim();
+      if (!trimmed) continue;
+      
+      const lines = trimmed.split("\n");
+      const eventType = lines.find(l => l.startsWith("event:"))?.replace("event:", "").trim();
+      const dataLine  = lines.find(l => l.startsWith("data:"))?.replace("data:", "").trim();
+      if (!dataLine) continue;
+      
+      let data;
+      try { data = JSON.parse(dataLine); } catch { continue; }
+      
+      if (eventType === "token") {
+        if (typeof data.text === "string" && data.text) {
+          fullText += data.text;
+          try {
+            assistantDiv.innerHTML = marked.parse(fullText);
+            assistantDiv.querySelectorAll("pre code").forEach(el => hljs.highlightElement(el));
+          } catch { assistantDiv.textContent = fullText; }
+          scrollToBottom();
         }
-
-        if (eventType === "token") {
-          // Guard: only process if data.text is a non-empty string (Rule 12 equivalent)
-          if (typeof data.text === "string" && data.text) {
-            fullText += data.text;
-            try {
-              assistantDiv.innerHTML = marked.parse(fullText);
-              assistantDiv.querySelectorAll("pre code").forEach((el) =>
-                hljs.highlightElement(el)
-              );
-            } catch {
-              assistantDiv.textContent = fullText;
-            }
-            scrollToBottom();
-          }
-
-        } else if (eventType === "sources") {
-          sources = data.sources ?? [];
-
-        } else if (eventType === "done") {
-          renderCitations(sources, assistantDiv);
-          saveToHistory(repoUrl, question, fullText, sources);
-
-        } else if (eventType === "error") {
-          if (data.message === "rate_limit") {
-            if (assistantDiv) assistantDiv.remove();
-            showRateLimitBanner(data.user_message);
-          } else {
-            assistantDiv.textContent = `Error: ${data.message ?? "Unknown error"}`;
-            assistantDiv.style.color = "var(--error)";
-          }
+      } else if (eventType === "sources") {
+        sources = data.sources ?? [];
+      } else if (eventType === "done") {
+        renderCitations(sources, assistantDiv);
+        saveToHistory(repoUrl, question, fullText, sources);
+      } else if (eventType === "error") {
+        if (data.message === "rate_limit") {
+          if (assistantDiv) assistantDiv.remove();
+          showRateLimitBanner(data.user_message);
+        } else {
+          assistantDiv.textContent = `Error: ${data.message ?? "Unknown error"}`;
+          assistantDiv.style.color = "var(--error)";
         }
       }
     }
-
   } catch (err) {
     // Remove the blinking cursor if it's still there
     assistantDiv.innerHTML = "";
@@ -744,19 +666,8 @@ async function checkBackendAndRoute() {
   // Cancel any pending offline retry before starting a fresh check
   if (offlineRetryCleanup) { offlineRetryCleanup(); offlineRetryCleanup = null; }
 
-  // ── Health check ────────────────────────────────────────────────────────────
-  try {
-    const r = await fetch(`${BACKEND}/health`, {
-      signal: AbortSignal.timeout(3000),
-    });
-    if (!r.ok) throw new Error("unhealthy");
-  } catch {
-    showState("OFFLINE");
-    updateStatusDot("offline");
-    scheduleOfflineRetry(); // Re-check next time user focuses this tab — no timer
-    return;
-  }
-
+  // Proxy handles keys, so we just assume health is OK.
+  // We can immediately proceed to check if the repo is indexed.
   // ── Check storage for prior index ───────────────────────────────────────────
   chrome.runtime.sendMessage(
     { type: "GET_REPO_STATUS", repo_url: repoUrl },
@@ -869,6 +780,7 @@ async function init() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function bindListeners() {
+  // Settings UI has been removed.
   /** Minimize button — slides the panel off-screen.
    *  The 'open' class is on #rl-panel-container (set by content.js),
    *  NOT on #rl-container (inner panel div).
@@ -881,15 +793,7 @@ function bindListeners() {
   document.getElementById("rl-close")?.addEventListener("click", async () => {
     // If indexing, send cancel request
     if (currentJobId) {
-       try {
-           await fetch(`${BACKEND}/cancel`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ job_id: currentJobId })
-           });
-       } catch (err) {
-           console.error("[RepoLens] Failed to cancel job:", err);
-       }
+       chrome.runtime.sendMessage({ type: "CANCEL_JOB", job_id: currentJobId });
     }
     // Just minimize instead of terminating
     document.getElementById("rl-panel-container")?.classList.remove("open");
@@ -968,24 +872,27 @@ function bindListeners() {
     } catch(e) {}
 
     try {
-      const r = await fetch(`${BACKEND}/index`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ repo_url: repoUrl }),
-        signal:  AbortSignal.timeout(10000),
-      });
-
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-
-      const { job_id } = await r.json();
-      showState("INDEXING");
-      updateStatusDot("indexing");
-      startPolling(job_id);
+      chrome.runtime.sendMessage(
+        { type: "START_INDEX", repo_url: repoUrl },
+        (response) => {
+          if (!response || response.error || !response.job_id) {
+            showState("NOT_INDEXED");
+            updateStatusDot("offline");
+            const descEl = document.getElementById("rl-not-indexed-desc");
+            if (descEl) { descEl.textContent = "Error: Proxy/Backend unreachable."; descEl.style.color = "var(--error)"; }
+            return;
+          }
+          showState("INDEXING");
+          updateStatusDot("indexing");
+          startPolling(response.job_id);
+        }
+      );
 
     } catch (err) {
-      // Backend call failed — fall back to OFFLINE
-      showState("OFFLINE");
+      showState("NOT_INDEXED");
       updateStatusDot("offline");
+      const descEl = document.getElementById("rl-not-indexed-desc");
+      if (descEl) { descEl.textContent = "Error: Proxy/Backend unreachable."; descEl.style.color = "var(--error)"; }
     }
   });
 

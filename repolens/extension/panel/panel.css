@@ -1317,7 +1317,105 @@
 }
 
 #rl-autocomplete.rl-autocomplete-hidden {
-  display: none;
+  display: none !important;
+}
+
+/* ==========================================================================
+   NEW SERVERLESS STYLES (Settings & Offline UI)
+   ========================================================================== */
+
+#state-settings {
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.rl-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rl-settings-form h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.rl-settings-form p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.rl-settings-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-top: 8px;
+}
+
+.rl-settings-form input {
+  padding: 8px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-muted);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: var(--font-code);
+  font-size: 12px;
+}
+
+.rl-settings-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+}
+
+#rl-save-keys-btn, #rl-go-to-settings-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 10px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: opacity 0.15s ease;
+}
+
+#rl-save-keys-btn:hover, #rl-go-to-settings-btn:hover {
+  opacity: 0.9;
+}
+
+#rl-settings-back-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-muted);
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+#rl-settings-back-btn:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.rl-offline-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 16px;
+  height: 100%;
+}
+
+.rl-offline-icon {
+  font-size: 48px;
 }
 
 /* Prediction row for word completion / typo fixing */
