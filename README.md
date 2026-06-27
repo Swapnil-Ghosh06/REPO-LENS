@@ -9,6 +9,7 @@
   [![Cloudflare Workers](https://img.shields.io/badge/Proxy-Cloudflare_Workers-F38020.svg?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
   [![Gemini](https://img.shields.io/badge/Embeddings-Gemini_text--embedding--004-4285F4.svg?logo=google&logoColor=white)](https://aistudio.google.com/)
   [![Groq](https://img.shields.io/badge/LLM-Groq_Llama_3.3_70B-F55036.svg?logo=meta&logoColor=white)](https://groq.com/)
+  [![License](https://img.shields.io/badge/License-Proprietary-red.svg)](./LICENSE)
 
   *A zero-setup, fully serverless RAG extension that turns any GitHub repository into an interactive AI chat — right inside your browser.*
 
@@ -67,16 +68,17 @@ RepoLens is **100% serverless**. There is no local backend to run. The extension
                   └───────────────────────────────────┘
 
 Extension Files:
-├── manifest.json       📋 Chrome MV3 manifest
-├── content.js          🔍 Detects GitHub repo URLs, mounts the panel
-├── background.js       🧠 RAG engine, crawler, embedder, LLM orchestration
+├── manifest.json          📋 Chrome MV3 manifest
+├── content.js             🔍 Detects GitHub repo URLs, mounts the panel
+├── background.js          🧠 RAG engine, crawler, embedder, LLM orchestration
+├── lib/                   📦 Bundled dependencies (browser-polyfill, marked, highlight.js, idb)
 └── panel/
-    ├── panel.html      🖼️ Panel UI shell
-    ├── panel.js        💬 State machine, chat streaming, UI logic
-    └── panel.css       🎨 All styling (Design.md spec)
+    ├── panel.html         🖼️ Panel UI shell
+    ├── panel.js           💬 State machine, chat streaming, UI logic
+    └── panel.css          🎨 All styling (Design.md spec)
 
 Proxy (Cloudflare Worker):
-└── proxy/src/index.js  🛡️ Secure key vault & API router
+└── proxy/src/index.js     🛡️ Secure key vault & API router
 ```
 
 ---
@@ -98,16 +100,17 @@ Proxy (Cloudflare Worker):
 
 ## 📦 Installation (For Users)
 
-This extension is distributed as a ZIP file via GitHub. No Chrome Web Store required.
+This extension is distributed as a ZIP file via GitHub Releases. No Chrome Web Store required.
 
 ### Step 1: Download
-Go to the [Releases](https://github.com/Swapnil-Ghosh06/REPO-LENS/releases) page and download the latest `repolens-extension.zip`. Or click **Code → Download ZIP** on the main repo page.
+Go to the [Releases](https://github.com/Swapnil-Ghosh06/REPO-LENS/releases) page and download the latest `repolens-extension.zip`.
 
-### Step 2: Load into Chrome
-1. Open Chrome and navigate to **`chrome://extensions`**
-2. Toggle **Developer mode** on (top-right corner).
-3. Click **Load unpacked**.
-4. Select the `repolens/extension` folder from the downloaded ZIP.
+### Step 2: Unzip & Load into Chrome
+1. Unzip the downloaded file.
+2. Open Chrome and navigate to **`chrome://extensions`**
+3. Toggle **Developer mode** on (top-right corner).
+4. Click **Load unpacked**.
+5. Select the `extension` folder from the unzipped contents.
 
 ### Step 3: Use It
 1. Go to any public GitHub repository.
@@ -121,7 +124,9 @@ Go to the [Releases](https://github.com/Swapnil-Ghosh06/REPO-LENS/releases) page
 
 ## 🔧 Setup (For Developers)
 
-Want to fork this, deploy your own proxy, or contribute? Here is everything you need.
+Want to deploy your own proxy? Here is everything you need.
+
+> ⚠️ **Note:** This project is source-available but proprietary. Deploying your own instance for personal use is permitted. Building a competing product or redistributing this code is not. See [LICENSE](./LICENSE) for full terms.
 
 ### Prerequisites
 - [Node.js](https://nodejs.org/) (v18+)
@@ -223,15 +228,16 @@ LLM Chat:
 
 ---
 
-## 🤝 Contributing
+## ⚖️ License
 
-Pull requests are welcome! If you find a bug or want to add a feature:
-1. Fork the repo.
-2. Create a branch: `git checkout -b feature/your-feature-name`
-3. Commit your changes with a descriptive message.
-4. Open a Pull Request.
+RepoLens is **source-available but proprietary software**, owned by Swapnil Ghosh.
 
-Please read [Rules.md](./Rules.md) before contributing to understand the coding standards and architectural constraints.
+- ✅ You **can** read the source code and use it for personal, non-commercial purposes.
+- ❌ You **cannot** copy, redistribute, sell, or build a competing product with it.
+- ❌ You **cannot** modify and publish the modified version without written permission.
+- 📩 For commercial use or collaboration, reach out at **swaapnil.ghosh@gmail.com**
+
+See the full [LICENSE](./LICENSE) for details.
 
 ---
 
