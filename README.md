@@ -23,7 +23,7 @@ Cursor and Copilot bring AI into your IDE. **RepoLens brings it directly to GitH
 
 No cloning. No setup. No IDE switching. Just open any GitHub repo, click **Index**, and start asking questions.
 
-> *"A README tells you what a project does. RepoLens tells you **how** it does it."*
+> *"A README tells you what a project does. RepoLens tells you **how** it does it.."*
 
 ---
 
