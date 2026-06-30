@@ -243,6 +243,7 @@ See the full [LICENSE](./LICENSE) for details.
 
 ## ⚠️ Limitations
 
+-**Manual installation** - Manual installation is required 
 - **Public repos only** — GitHub's raw API is used to fetch file content. Private repos require a GitHub Personal Access Token stored in `chrome.storage.local`.
 - **800 file cap** — Repositories with more than 800 supported code files (after stripping out tests, minified files, and docs) are rejected to prevent runaway API costs and index bloat.
 - **Rate limits** — The free tiers of Gemini, Groq, and Cohere have rate limits. The multi-provider fallback chain handles this gracefully, but very large repos may slow down during indexing.
