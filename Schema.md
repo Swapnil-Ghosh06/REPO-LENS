@@ -252,7 +252,7 @@ interface LocalStorage {
 }
 ```
 
-### chrome.storage.session (cleared on browser close)
+### chrome.storage.session (cleared on browser close).
 
 All session storage is accessed via `chrome.runtime.sendMessage` to `background.js`. Content scripts do not access session storage directly.
 
